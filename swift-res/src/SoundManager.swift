@@ -2,7 +2,7 @@ import AVFoundation
 
 final class SoundManager {
     enum Effect {
-        case jump, coin, stomp
+        case jump, coin, stomp, block
     }
 
     private var players: [Effect: AVAudioPlayer] = [:]
@@ -14,6 +14,7 @@ final class SoundManager {
         load(.jump, "jump.wav")
         load(.coin, "coin.wav")
         load(.stomp, "stomp.wav")
+        load(.block, "breakblock.wav")
     }
 
     private func load(_ effect: Effect, _ filename: String) {
