@@ -100,7 +100,7 @@ final class GameScene: SKScene {
         }
 
         mario.size = CGSize(width: 32, height: 32)
-        mario.position = CGPoint(x: 48, y: worldY(row: 11) + 16)
+        mario.position = CGPoint(x: 48, y: worldY(row: 10) + 16)
         mario.zPosition = 10
         worldNode.addChild(mario)
     }
@@ -128,8 +128,8 @@ final class GameScene: SKScene {
     private func spawnCoins() {
         for p in level.coinPositions {
             let coin = SKShapeNode(circleOfRadius: 5)
-            coin.fillColor = SKColor.yellow
-            coin.strokeColor = SKColor.white
+            coin.fillColor = .yellow
+            coin.strokeColor = .white
             coin.lineWidth = 1
             coin.position = tileCenter(x: p.x, row: p.y)
             coin.zPosition = 6
@@ -167,11 +167,7 @@ final class GameScene: SKScene {
     }
 
     private func spawnEnemies() {
-        let positions: [CGFloat] = [
-            360, 520, 700, 940, 1220, 1500, 1840, 2140, 2460, 2860
-        ]
-
-        for x in positions {
+        for p in level.enemyPositions {
             let enemy: SKSpriteNode
             if let texture = SpriteSheet.texture(
                 named: "enemysheet",
@@ -185,7 +181,7 @@ final class GameScene: SKScene {
             }
 
             enemy.size = CGSize(width: 24, height: 24)
-            enemy.position = CGPoint(x: x, y: worldY(row: 11) + 12)
+            enemy.position = tileCenter(x: p.x, row: p.y)
             enemy.zPosition = 8
             worldNode.addChild(enemy)
             enemies.append(enemy)
@@ -372,8 +368,8 @@ final class GameScene: SKScene {
                 top: newY + halfH,
                 bottom: bottom
             ) {
-                let row = Int(floor(bottom / tile))
-                mario.position.y = CGFloat(row + 1) * tile + halfH
+                let row = Int(floor((virtualHeight - bottom) / tile))
+                mario.position.y = worldY(row: row) + halfH
                 velocity.dy = 0
                 onGround = true
                 return
@@ -466,7 +462,7 @@ final class GameScene: SKScene {
     }
 
     private func resetMario() {
-        mario.position = CGPoint(x: 48, y: worldY(row: 11) + 16)
+        mario.position = CGPoint(x: 48, y: worldY(row: 10) + 16)
         velocity = .zero
         onGround = false
         cameraNode.position.x = virtualWidth / 2
