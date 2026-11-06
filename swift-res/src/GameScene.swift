@@ -330,7 +330,7 @@ final class GameScene: SKScene {
     }
 
     private func addGoal() {
-        goalX = CGFloat(level.width - 10) * tile
+        goalX = CGFloat(level.exitX) * tile
         let pole = SKShapeNode(rectOf: CGSize(width: 2, height: 112))
         pole.fillColor = .white
         pole.strokeColor = .white
