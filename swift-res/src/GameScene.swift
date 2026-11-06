@@ -64,6 +64,7 @@ final class GameScene: SKScene {
     private var mapNodes: [SKShapeNode] = []
     private var mapStageLabels: [SKLabelNode] = []
     private var selectedMapStage = 0
+    private var shouldResetLives = false
 
     private let sound = SoundManager()
 
@@ -113,6 +114,7 @@ final class GameScene: SKScene {
 
     private func showTitle() {
         clearScene()
+        shouldResetLives = true
         screenState = .title
 
         let sky = SKShapeNode(rectOf: CGSize(width: virtualWidth, height: virtualHeight))
@@ -217,6 +219,7 @@ final class GameScene: SKScene {
 
     private func startStage(_ index: Int) {
         stage = max(0, min(index, stageCount - 1))
+        if shouldResetLives { lives = 3; shouldResetLives = false }
         level = GameLevel(stage: stage)
         collectedCoins = 0
         score = 0
@@ -681,26 +684,27 @@ final class GameScene: SKScene {
         let halfH: CGFloat = isBigMario ? 14 : 8
         let newY = mario.position.y + amount
 
+        var resolvedY = newY
         if amount <= 0 {
             let bottom = newY - halfH
             if collides(left: mario.position.x - halfW, right: mario.position.x + halfW, top: newY, bottom: bottom) {
                 let row = Int(floor((virtualHeight - bottom) / tile))
-                mario.position.y = worldY(row: row) + tile + halfH
+                resolvedY = worldY(row: row) + tile + halfH
                 velocity.dy = 0
                 onGround = true
-                return
+            } else {
+                onGround = false
             }
-            onGround = false
         } else {
             let top = newY + halfH
             if collides(left: mario.position.x - halfW, right: mario.position.x + halfW, top: top, bottom: newY) {
                 let row = Int(floor((virtualHeight - top) / tile))
-                mario.position.y = worldY(row: row) - halfH - 0.1
+                resolvedY = worldY(row: row) - halfH - 0.1
                 velocity.dy = 0
             }
             checkQuestionBlocks()
         }
-        mario.position.y = newY
+        mario.position.y = resolvedY
     }
 
     private func checkQuestionBlocks() {
