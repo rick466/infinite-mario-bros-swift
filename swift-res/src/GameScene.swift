@@ -69,7 +69,7 @@ final class GameScene: SKScene {
         spawnCoins()
         addHUD()
         addTouchControls()
-        showStateMessage("WORLD 1-1", duration: 1.4)
+        showStateMessage("WORLD 1-1  •  TOUCH TO RUN", duration: 1.6)
     }
 
     private func buildWorld() {
@@ -105,6 +105,7 @@ final class GameScene: SKScene {
             }
         }
         worldNode.addChild(levelNode)
+        addPipeDecorations()
         addGoal()
 
         for p in level.questionBlockPositions {
@@ -129,6 +130,45 @@ final class GameScene: SKScene {
         mario.position = CGPoint(x: 48, y: worldY(row: 10) + (isBigMario ? 16 : 8))
         mario.zPosition = 10
         worldNode.addChild(mario)
+    }
+
+    private func addPipeDecorations() {
+        // Detect two-column vertical solid runs and draw them as Mario-style pipes.
+        for x in 0..<(level.width - 1) {
+            var y = 0
+            while y < level.height - 2 {
+                if level.isSolid(x, y) && level.isSolid(x + 1, y) &&
+                   !level.isSolid(x, y - 1) && !level.isSolid(x + 1, y - 1) {
+                    var end = y
+                    while end + 1 < level.height && level.isSolid(x, end + 1) && level.isSolid(x + 1, end + 1) {
+                        end += 1
+                    }
+                    if end - y >= 2 {
+                        let bodyHeight = CGFloat(end - y + 1) * tile
+                        let body = SKShapeNode(rectOf: CGSize(width: tile * 1.5, height: bodyHeight))
+                        body.fillColor = .green
+                        body.strokeColor = .darkGray
+                        body.lineWidth = 1
+                        body.position = CGPoint(
+                            x: CGFloat(x) * tile + tile,
+                            y: worldY(row: end) + bodyHeight / 2
+                        )
+                        body.zPosition = 3
+                        worldNode.addChild(body)
+
+                        let rim = SKShapeNode(rectOf: CGSize(width: tile * 2, height: 6))
+                        rim.fillColor = .green
+                        rim.strokeColor = .darkGray
+                        rim.position = CGPoint(x: body.position.x, y: worldY(row: y) + tile + 1)
+                        rim.zPosition = 4
+                        worldNode.addChild(rim)
+                    }
+                    y = end + 1
+                } else {
+                    y += 1
+                }
+            }
+        }
     }
 
     private func addGoal() {
@@ -608,8 +648,14 @@ final class GameScene: SKScene {
                     questionNodes[k] = used
                 }
 
+                if let block = questionNodes[k] {
+                    let startY = block.position.y
+                    block.run(.sequence([
+                        .moveBy(x: 0, y: 5, duration: 0.06),
+                        .moveTo(y: startY, duration: 0.08)
+                    ]))
+                }
                 spawnMushroom(at: tileCenter(x: x, row: row - 1))
-                sound.play(.powerUp)
                 sound.play(.block)
                 break
             }
