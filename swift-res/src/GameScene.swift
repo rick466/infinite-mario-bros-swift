@@ -702,10 +702,10 @@ final class GameScene: SKScene {
     private func moveX(_ amount: CGFloat) {
         let halfW: CGFloat = isBigMario ? 11 : 7
         let newX = mario.position.x + amount
-        if amount > 0 && collides(left: newX + halfW, right: newX + halfW, top: mario.position.y + 14, bottom: mario.position.y - 14) {
+        if amount > 0 && collides(left: newX + halfW, right: newX + halfW, top: mario.position.y + 14, bottom: mario.position.y - 14, verticalMotion: 0) {
             mario.position.x = floor((newX + halfW) / tile) * tile - halfW - 0.1
             velocity.dx = 0
-        } else if amount < 0 && collides(left: newX - halfW, right: newX - halfW, top: mario.position.y + 14, bottom: mario.position.y - 14) {
+        } else if amount < 0 && collides(left: newX - halfW, right: newX - halfW, top: mario.position.y + 14, bottom: mario.position.y - 14, verticalMotion: 0) {
             mario.position.x = floor((newX - halfW) / tile + 1) * tile + halfW + 0.1
             velocity.dx = 0
         } else {
@@ -721,7 +721,7 @@ final class GameScene: SKScene {
         var resolvedY = newY
         if amount <= 0 {
             let bottom = newY - halfH
-            if collides(left: mario.position.x - halfW, right: mario.position.x + halfW, top: newY, bottom: bottom) {
+            if collides(left: mario.position.x - halfW, right: mario.position.x + halfW, top: newY, bottom: bottom, verticalMotion: amount) {
                 let row = Int(floor((virtualHeight - bottom) / tile))
                 resolvedY = worldY(row: row) + tile + halfH
                 velocity.dy = 0
@@ -731,7 +731,7 @@ final class GameScene: SKScene {
             }
         } else {
             let top = newY + halfH
-            if collides(left: mario.position.x - halfW, right: mario.position.x + halfW, top: top, bottom: newY) {
+            if collides(left: mario.position.x - halfW, right: mario.position.x + halfW, top: top, bottom: newY, verticalMotion: amount) {
                 let row = Int(floor((virtualHeight - top) / tile))
                 resolvedY = worldY(row: row) - halfH - 0.1
                 velocity.dy = 0
@@ -964,13 +964,13 @@ final class GameScene: SKScene {
         }
     }
 
-    private func collides(left: CGFloat, right: CGFloat, top: CGFloat, bottom: CGFloat) -> Bool {
+    private func collides(left: CGFloat, right: CGFloat, top: CGFloat, bottom: CGFloat, verticalMotion: CGFloat? = nil) -> Bool {
         let minX = Int(floor(left / tile))
         let maxX = Int(floor(right / tile))
         let minY = Int(floor((virtualHeight - top) / tile))
         let maxY = Int(floor((virtualHeight - bottom) / tile))
         for x in minX...maxX {
-            for y in minY...maxY where level.isSolid(x, y) { return true }
+            for y in minY...maxY where level.isBlocking(x, y, verticalMotion: verticalMotion) { return true }
         }
         return false
     }
