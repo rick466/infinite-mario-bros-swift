@@ -22,33 +22,28 @@ final class MarioAnimator {
         }
     }
 
-    func update(dt: CGFloat, velocityY: CGFloat = 0, onGround: Bool = true) {
+    func update(dt: CGFloat, velocityX: CGFloat = 0, velocityY: CGFloat = 0, onGround: Bool = true) {
         guard !textures.isEmpty else { return }
 
         let dx = node.position.x - previousX
         previousX = node.position.x
+        if dx < -0.1 { node.xScale = -1 }
+        else if dx > 0.1 { node.xScale = 1 }
 
-        let speed = abs(dx) / max(dt, 0.0001)
-
-        if dx < -0.5 {
-            node.xScale = -1
-        } else if dx > 0.5 {
-            node.xScale = 1
+        // Mario.java: runTime += abs(xa) + 5; frame = (runTime / 20) % 4.
+        if abs(velocityX) < 0.5 {
+            runTime = 0
+        } else {
+            runTime += abs(velocityX) + 5
         }
+
+        var frame = Int(runTime / 20) % 4
+        if frame == 3 { frame = 1 }
+        if abs(velocityX) > 10 { frame += 3 }
 
         if !onGround {
-            let frame = velocityY > 0 ? 6 : 7
-            node.texture = textures[min(frame, textures.count - 1)]
-            return
+            frame = abs(velocityX) > 10 ? 7 : 6
         }
-
-        if speed > 8 {
-            runTime += dt * speed
-            let frame = Int(runTime / 7.5) % 4
-            node.texture = textures[min(frame, textures.count - 1)]
-        } else {
-            node.texture = textures[0]
-            runTime = 0
-        }
+        node.texture = textures[min(frame, textures.count - 1)]
     }
 }
