@@ -46,19 +46,19 @@ struct GameLevel {
     }()
 
     func isSolid(_ x: Int, _ y: Int) -> Bool {
-        guard x >= 0, x < width, y >= 0, y < height else {
-            return y < 0 || x < 0 || x >= width
-        }
-        return (Self.tileBehaviors[Int(tileIDs[x][y])] & 0b0000_0111) != 0
+        guard y >= 0 else { return false }
+        let safeX = min(max(x, 0), width - 1)
+        let safeY = min(y, height - 1)
+        return (Self.tileBehaviors[Int(tileIDs[safeX][safeY])] & 0b0000_0111) != 0
     }
 
     /// verticalMotion is expressed in SpriteKit coordinates (up is positive).
     /// Java's Level.isBlocking uses screen coordinates (down is positive).
     func isBlocking(_ x: Int, _ y: Int, verticalMotion: CGFloat? = nil) -> Bool {
-        guard x >= 0, x < width, y >= 0, y < height else {
-            return y < 0 || x < 0 || x >= width
-        }
-        let flags = Self.tileBehaviors[Int(tileIDs[x][y])]
+        guard y >= 0 else { return false }
+        let safeX = min(max(x, 0), width - 1)
+        let safeY = min(y, height - 1)
+        let flags = Self.tileBehaviors[Int(tileIDs[safeX][safeY])]
         if flags & 0b0000_0010 != 0 { return true } // BLOCK_ALL
         guard let verticalMotion else {
             return (flags & 0b0000_0111) != 0
