@@ -16,6 +16,11 @@ final class GameScene: SKScene {
     private var fireballs: [SKShapeNode] = []
     private var fireballVelocity: [ObjectIdentifier: CGVector] = [:]
     private var winLabel = SKLabelNode()
+    private var stateLabel = SKLabelNode()
+    private var gameFinished = false
+    private var gameOver = false
+    private var goalX: CGFloat = 0
+    private var flagNode = SKShapeNode()
     private var level = GameLevel()
     private let worldNode = SKNode()
     private var cameraNode = SKCameraNode()
@@ -64,6 +69,7 @@ final class GameScene: SKScene {
         spawnCoins()
         addHUD()
         addTouchControls()
+        showStateMessage("WORLD 1-1", duration: 1.4)
     }
 
     private func buildWorld() {
@@ -99,6 +105,7 @@ final class GameScene: SKScene {
             }
         }
         worldNode.addChild(levelNode)
+        addGoal()
 
         for p in level.questionBlockPositions {
             let node = makeQuestionBlock(used: false)
@@ -122,6 +129,31 @@ final class GameScene: SKScene {
         mario.position = CGPoint(x: 48, y: worldY(row: 10) + (isBigMario ? 16 : 8))
         mario.zPosition = 10
         worldNode.addChild(mario)
+    }
+
+    private func addGoal() {
+        goalX = CGFloat(level.width - 10) * tile
+        let pole = SKShapeNode(rectOf: CGSize(width: 2, height: 112))
+        pole.fillColor = .white
+        pole.strokeColor = .white
+        pole.position = CGPoint(x: goalX, y: 76)
+        pole.zPosition = 4
+        worldNode.addChild(pole)
+
+        let flag = SKShapeNode(rectOf: CGSize(width: 26, height: 16))
+        flag.fillColor = .red
+        flag.strokeColor = .white
+        flag.position = CGPoint(x: goalX + 13, y: 119)
+        flag.zPosition = 5
+        worldNode.addChild(flag)
+        flagNode = flag
+
+        let base = SKShapeNode(circleOfRadius: 6)
+        base.fillColor = .white
+        base.strokeColor = .white
+        base.position = CGPoint(x: goalX, y: 20)
+        base.zPosition = 4
+        worldNode.addChild(base)
     }
 
     private func makeQuestionBlock(used: Bool) -> SKSpriteNode {
@@ -246,7 +278,7 @@ final class GameScene: SKScene {
                     damageInvulnerability = 1.2
                     velocity.dy = 180
                 } else {
-                    resetMario()
+                    die()
                 }
                 return
             }
@@ -300,6 +332,10 @@ final class GameScene: SKScene {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if gameOver || gameFinished {
+            restartGame()
+            return
+        }
         for touch in touches { handleTouch(touch, pressed: true) }
     }
 
@@ -335,6 +371,7 @@ final class GameScene: SKScene {
             CGFloat(currentTime - (lastTime == 0 ? currentTime : lastTime))
         )
         lastTime = currentTime
+        guard !gameFinished && !gameOver else { return }
 
         let direction = (rightHeld ? 1 : 0) - (leftHeld ? 1 : 0)
         velocity.dx = CGFloat(direction) * runSpeed
@@ -365,24 +402,111 @@ final class GameScene: SKScene {
         moveX(velocity.dx * dt)
         moveY(velocity.dy * dt)
         collectCoins()
+        updatePowerUps(dt)
+        updateFireballs(dt)
         updateEnemies(dt)
-        marioAnimator?.update(dt: dt)
+        marioAnimator?.update(dt: dt, velocityY: velocity.dy, onGround: onGround)
         updateCamera()
         checkGoal()
     }
 
     private func checkGoal() {
-        if mario.position.x >= CGFloat(level.width - 8) * tile {
-            if winLabel.parent == nil {
-                winLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-                winLabel.text = "COURSE CLEAR!"
-                winLabel.fontSize = 24
-                winLabel.fontColor = .white
-                winLabel.position = CGPoint(x: 0, y: 10)
-                winLabel.zPosition = 500
-                cameraNode.addChild(winLabel)
-            }
+        guard !gameFinished && !gameOver else { return }
+        if mario.position.x >= goalX - 10 {
+            gameFinished = true
+            leftHeld = false
+            rightHeld = false
+            jumpHeld = false
+            firePressed = false
+            velocity = .zero
+
+            let slide = SKAction.moveTo(y: 55, duration: 0.45)
+            flagNode.run(slide)
+
+            winLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+            winLabel.text = "COURSE CLEAR!"
+            winLabel.fontSize = 24
+            winLabel.fontColor = .white
+            winLabel.position = CGPoint(x: 0, y: 10)
+            winLabel.zPosition = 500
+            cameraNode.addChild(winLabel)
+
+            showStateMessage("TOUCH TO PLAY AGAIN", duration: 0)
         }
+    }
+
+    private func showStateMessage(_ text: String, duration: TimeInterval) {
+        stateLabel.removeFromParent()
+        stateLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+        stateLabel.text = text
+        stateLabel.fontSize = 18
+        stateLabel.fontColor = .white
+        stateLabel.position = CGPoint(x: 0, y: 35)
+        stateLabel.zPosition = 500
+        cameraNode.addChild(stateLabel)
+
+        if duration > 0 {
+            stateLabel.run(.sequence([
+                .wait(forDuration: duration),
+                .fadeOut(withDuration: 0.25)
+            ]))
+        }
+    }
+
+    private func die() {
+        guard !gameOver && !gameFinished else { return }
+        gameOver = true
+        leftHeld = false
+        rightHeld = false
+        jumpHeld = false
+        firePressed = false
+        velocity = .zero
+
+        let jump = SKAction.sequence([
+            .moveBy(x: 0, y: 32, duration: 0.25),
+            .moveBy(x: 0, y: -80, duration: 0.55)
+        ])
+        mario.run(jump)
+
+        showStateMessage("GAME OVER", duration: 0)
+        let sub = SKLabelNode(fontNamed: "Menlo-Bold")
+        sub.text = "TOUCH TO RETRY"
+        sub.fontSize = 12
+        sub.fontColor = .white
+        sub.position = CGPoint(x: 0, y: 10)
+        sub.zPosition = 500
+        cameraNode.addChild(sub)
+    }
+
+    private func restartGame() {
+        guard let view else { return }
+        removeAllActions()
+        removeAllChildren()
+        mario = SKSpriteNode()
+        cameraNode = SKCameraNode()
+        enemies.removeAll()
+        enemyDirections.removeAll()
+        enemyAnimators.removeAll()
+        coins.removeAll()
+        powerUps.removeAll()
+        fireballs.removeAll()
+        mushroomVelocity.removeAll()
+        mushroomDirections.removeAll()
+        powerUpKinds.removeAll()
+        fireballVelocity.removeAll()
+        questionNodes.removeAll()
+        usedBlocks.removeAll()
+        collectedCoins = 0
+        isBigMario = true
+        isFireMario = false
+        damageInvulnerability = 0
+        gameFinished = false
+        gameOver = false
+        winLabel = SKLabelNode()
+        stateLabel = SKLabelNode()
+        lastTime = 0
+        level = GameLevel()
+        didMove(to: view)
     }
 
     private func collectCoins() {
@@ -459,7 +583,7 @@ final class GameScene: SKScene {
         mario.position.y = newY
 
         if mario.position.y < -40 {
-            resetMario()
+            die()
         }
     }
 
@@ -706,7 +830,7 @@ final class GameScene: SKScene {
     }
 
     private func resetMario() {
-        mario.position = CGPoint(x: 48, y: worldY(row: 10) + 16)
+        mario.position = CGPoint(x: 48, y: worldY(row: 10) + (isBigMario ? 16 : 8))
         velocity = .zero
         onGround = false
         cameraNode.position.x = virtualWidth / 2
