@@ -340,7 +340,9 @@ private struct JavaRandom {
         while true {
             let bits = next(31)
             let value = bits % bound
-            if bits - value + (bound - 1) >= 0 { return value }
+            // Java performs this overflow check as a signed 32-bit Int.
+            let overflow = Int32(truncatingIfNeeded: bits - value + (bound - 1))
+            if overflow >= 0 { return value }
         }
     }
 }
