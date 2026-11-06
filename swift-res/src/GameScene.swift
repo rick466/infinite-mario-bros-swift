@@ -77,7 +77,7 @@ final class GameScene: SKScene {
         }
 
         mario.size = CGSize(width: 32, height: 32)
-        mario.position = CGPoint(x: 48, y: worldY(row: 10) + 16)
+        mario.position = CGPoint(x: 48, y: worldY(row: 11) + 16)
         mario.zPosition = 10
         worldNode.addChild(mario)
     }
