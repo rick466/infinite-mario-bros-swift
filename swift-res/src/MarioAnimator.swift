@@ -5,15 +5,20 @@ final class MarioAnimator {
     private var textures: [SKTexture] = []
     private var previousX: CGFloat
     private var runTime: CGFloat = 0
+    private let small: Bool
 
-    init(node: SKSpriteNode) {
+    init(node: SKSpriteNode, small: Bool = false) {
         self.node = node
+        self.small = small
         self.previousX = node.position.x
 
-        for column in 0..<15 {
+        let sheet = small ? "smallmariosheet" : "mariosheet"
+        let cell = small ? CGSize(width: 16, height: 16) : CGSize(width: 32, height: 32)
+        let count = small ? 14 : 15
+        for column in 0..<count {
             if let texture = SpriteSheet.texture(
-                named: "mariosheet",
-                cellSize: CGSize(width: 32, height: 32),
+                named: sheet,
+                cellSize: cell,
                 column: column,
                 row: 0
             ) {
@@ -42,7 +47,7 @@ final class MarioAnimator {
         if abs(velocityX) > 10 { frame += 3 }
 
         if !onGround {
-            frame = abs(velocityX) > 10 ? 7 : 6
+            frame = small ? 5 : (abs(velocityX) > 10 ? 7 : 6)
         }
         node.texture = textures[min(frame, textures.count - 1)]
     }
