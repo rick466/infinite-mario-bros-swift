@@ -29,6 +29,8 @@ final class GameScene: SKScene {
     private var onGround = false
     private var wasOnGround = false
     private var jumpTime: CGFloat = 0
+    private var facing: CGFloat = 1
+    private var sliding = false
     private var lastTime: TimeInterval = 0
     private var tickAccumulator: CGFloat = 0
 
@@ -121,6 +123,9 @@ final class GameScene: SKScene {
         velocity = .zero
         onGround = false
         wasOnGround = false
+        sliding = false
+        facing = 1
+        jumpTime = 0
         lastTime = 0
         tickAccumulator = 0
         leftHeld = false
@@ -529,20 +534,48 @@ final class GameScene: SKScene {
         // The FIRE touch control doubles as the original speed/action button.
         let direction = (rightHeld ? 1 : 0) - (leftHeld ? 1 : 0)
         let sideAcceleration: CGFloat = firePressed ? 1.2 : 0.6
-        velocity.dx += CGFloat(direction) * sideAcceleration
 
-        if jumpHeld && !wasJumpHeld && onGround {
-            // Java: yJumpSpeed = -1.9, jumpTime = 7, ya = jumpTime * yJumpSpeed.
-            jumpTime = 7
-            velocity.dy = 7 * 1.9
-            onGround = false
-            sound.play(.jump)
+        if velocity.dx > 2 { facing = 1 }
+        if velocity.dx < -2 { facing = -1 }
+        if direction < 0 {
+            if facing == 1 { sliding = false }
+            velocity.dx -= sideAcceleration
+            if jumpTime >= 0 { facing = -1 }
+        } else if direction > 0 {
+            if facing == -1 { sliding = false }
+            velocity.dx += sideAcceleration
+            if jumpTime >= 0 { facing = 1 }
+        }
+
+        if jumpHeld && !wasJumpHeld {
+            if sliding && !onGround {
+                // Mario.java wall-slide jump: jumpTime=-6, xJumpSpeed=-facing*6.
+                jumpTime = -6
+                velocity.dx = -facing * 6
+                velocity.dy = 12
+                facing = -facing
+                onGround = false
+                sliding = false
+                sound.play(.jump)
+            } else if onGround {
+                jumpTime = 7
+                velocity.dy = 7 * 1.9
+                onGround = false
+                sliding = false
+                sound.play(.jump)
+            }
         } else if jumpHeld && jumpTime > 0 {
             velocity.dy = jumpTime * 1.9
             jumpTime -= 1
+        } else if jumpHeld && jumpTime < 0 {
+            velocity.dy = -jumpTime * 2
+            velocity.dx = -facing * 6
+            jumpTime += 1
         } else if !jumpHeld {
             jumpTime = 0
         }
+        if direction == 0 || velocity.dy > 0 || onGround { sliding = false }
+        mario.xScale = facing
         wasJumpHeld = jumpHeld
 
         if firePressed && !wasFirePressed && isFireMario {
@@ -1011,6 +1044,7 @@ final class GameScene: SKScene {
                 let column = Int(floor(edgeX / tile))
                 mario.position.x = CGFloat(column) * tile - halfW - 0.1
                 velocity.dx = 0
+                sliding = true
                 return
             }
         } else if amount < 0 {
@@ -1019,9 +1053,11 @@ final class GameScene: SKScene {
                 let column = Int(floor(edgeX / tile))
                 mario.position.x = CGFloat(column + 1) * tile + halfW + 0.1
                 velocity.dx = 0
+                sliding = true
                 return
             }
         }
+        sliding = false
         mario.position.x = min(CGFloat(level.width) * tile, max(4, nextX))
     }
 
