@@ -551,7 +551,7 @@ final class GameScene: SKScene {
         updateFireballs(dt)
         updateEnemies(dt)
 
-        marioAnimator?.update(dt: dt, velocityY: velocity.dy, onGround: onGround)
+        marioAnimator?.update(dt: dt, velocityX: velocity.dx, velocityY: velocity.dy, onGround: onGround)
         updateCamera()
         updateHUD()
 
@@ -634,13 +634,13 @@ final class GameScene: SKScene {
             if damageInvulnerability <= 0 &&
                 abs(enemy.position.x - mario.position.x) < 20 &&
                 abs(enemy.position.y - mario.position.y) < 24 {
-                if velocity.dy < -20 && mario.position.y > enemy.position.y && enemyKinds[i] != 3 && enemyKinds[i] != 4 {
+                if velocity.dy < -0.1 && mario.position.y > enemy.position.y && enemyKinds[i] != 3 && enemyKinds[i] != 4 {
                     if enemyKinds[i] == 0 || enemyKinds[i] == 1 {
                         enemyKinds[i] = 5
                         enemy.color = .white
                         enemy.size = CGSize(width: 22, height: 14)
                         score += 100
-                        velocity.dy = 8.0
+                        velocity.dy = 15.2
                         sound.play(.stomp)
                         i += 1
                         continue
