@@ -27,6 +27,7 @@ final class GameScene: SKScene {
 
     private var velocity = CGVector.zero
     private var onGround = false
+    private var wasOnGround = false
     private var jumpTime: CGFloat = 0
     private var lastTime: TimeInterval = 0
     private var tickAccumulator: CGFloat = 0
@@ -110,6 +111,8 @@ final class GameScene: SKScene {
         marioAnimator = nil
         flagNode = SKShapeNode()
         velocity = .zero
+        onGround = false
+        wasOnGround = false
         lastTime = 0
         tickAccumulator = 0
         leftHeld = false
@@ -507,6 +510,7 @@ final class GameScene: SKScene {
     }
 
     private func simulateGameTick(dt: CGFloat) {
+        wasOnGround = onGround
         timeLeft -= 1
         if timeLeft <= 0 {
             timeLeft = 0
@@ -719,7 +723,7 @@ final class GameScene: SKScene {
                 abs(enemy.position.x - mario.position.x) < 20 &&
                 abs(enemy.position.y - mario.position.y) < 24 {
                 if velocity.dy < -0.1 && mario.position.y > enemy.position.y &&
-                    kind != 3 && kind != 4 {
+                    (!onGround || !wasOnGround) && kind != 3 && kind != 4 {
                     if kind == 0 || kind == 1 {
                         let shell = SKSpriteNode(
                             texture: SpriteSheet.texture(
@@ -845,7 +849,18 @@ final class GameScene: SKScene {
 
         if abs(shell.position.x - mario.position.x) < 16 &&
             abs(shell.position.y - mario.position.y) < 20 {
-            if direction == 0 {
+            let marioIsStomping = velocity.dy < -0.1 &&
+                mario.position.y > shell.position.y &&
+                (!onGround || !wasOnGround)
+            if marioIsStomping {
+                if direction != 0 {
+                    enemyDirections[index] = 0
+                } else {
+                    enemyDirections[index] = mario.position.x < shell.position.x ? 1 : -1
+                }
+                velocity.dy = 15.2
+                sound.play(.stomp)
+            } else if direction == 0 {
                 enemyDirections[index] = mario.position.x < shell.position.x ? 1 : -1
                 sound.play(.stomp)
             } else if damageInvulnerability <= 0 {
