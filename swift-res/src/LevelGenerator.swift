@@ -4,7 +4,7 @@ import Foundation
 /// The tile map is intentionally independent from SpriteKit so it can be
 /// used by the iPad game and expanded toward the original generator.
 struct LevelGenerator {
-    enum LevelType {
+    enum LevelType: Equatable {
         case overground
         case underground
         case castle
