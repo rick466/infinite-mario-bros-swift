@@ -38,6 +38,9 @@ final class GameScene: SKScene {
     private var enemies: [SKSpriteNode] = []
     private var enemyKinds: [Int] = []
     private var enemyDirections: [CGFloat] = []
+    /// Enemy vertical velocity uses Java's screen-down-positive units per tick.
+    private var enemyVerticalVelocities: [CGFloat] = []
+    private var enemyGrounded: [Bool] = []
     private var enemyAnimators: [EnemyAnimator?] = []
 
     private var coins: [SKShapeNode] = []
@@ -86,6 +89,8 @@ final class GameScene: SKScene {
         enemies.removeAll()
         enemyKinds.removeAll()
         enemyDirections.removeAll()
+        enemyVerticalVelocities.removeAll()
+        enemyGrounded.removeAll()
         enemyAnimators.removeAll()
         coins.removeAll()
         powerUps.removeAll()
@@ -609,67 +614,118 @@ final class GameScene: SKScene {
             enemies.append(enemy)
             enemyKinds.append(kind)
             enemyDirections.append(index.isMultiple(of: 2) ? -1 : 1)
+            enemyVerticalVelocities.append(0)
+            enemyGrounded.append(false)
             enemyAnimators.append(kind == 2 || kind == 0 || kind == 1 || kind == 3
                 ? EnemyAnimator(node: enemy, type: kind, winged: winged) : nil)
         }
     }
 
+    /// Enemy.move() port: 1.75 px/tick horizontal speed, 0.89 inertia,
+    /// Java gravity (2 or 0.6 for winged enemies), and red-koopa cliff avoidance.
     private func updateEnemies(_ dt: CGFloat) {
         var i = 0
         while i < enemies.count {
             let enemy = enemies[i]
-            let direction = enemyDirections[i]
-            let speed: CGFloat = 1.75 * 24
-            enemy.position.x += direction * speed * dt
+            let kind = enemyKinds[i]
+            var direction = enemyDirections[i]
+            let winged = enemy.childNode(withName: "wings") != nil
+            let halfW: CGFloat = 6
+            let halfH: CGFloat = 7
 
-            let tileX = Int(floor(enemy.position.x / tile))
-            let footRow = Int(floor((virtualHeight - enemy.position.y + 8) / tile))
-            let aheadX = tileX + (direction > 0 ? 1 : -1)
-            if enemyKinds[i] == 0 && !level.isSolid(aheadX, footRow) {
-                enemyDirections[i] *= -1
-                i += 1
-                continue
+            if direction == 0 { direction = 1 }
+            let nextX = enemy.position.x + direction * 1.75
+            let horizontalBlocked = collides(
+                left: nextX - halfW, right: nextX + halfW,
+                top: enemy.position.y + halfH, bottom: enemy.position.y - halfH,
+                verticalMotion: 0
+            )
+
+            // Red koopas turn around at ledges; other enemies walk off.
+            if horizontalBlocked || (kind == 0 && enemyGrounded[i] &&
+                !hasGroundAhead(x: nextX + direction * halfW, y: enemy.position.y - halfH - 2)) {
+                direction *= -1
+                enemyDirections[i] = direction
+            } else {
+                enemy.position.x = nextX
             }
+
+            var javaYA = enemyVerticalVelocities[i]
+            if enemyGrounded[i] && winged {
+                javaYA = -10
+            }
+            let spriteDeltaY = -javaYA
+            let nextY = enemy.position.y + spriteDeltaY
+            let verticalBlocked = collides(
+                left: enemy.position.x - halfW, right: enemy.position.x + halfW,
+                top: nextY + halfH, bottom: nextY - halfH,
+                verticalMotion: spriteDeltaY
+            )
+            if verticalBlocked {
+                if spriteDeltaY < 0 {
+                    let row = Int(floor((virtualHeight - (nextY - halfH)) / tile))
+                    enemy.position.y = worldY(row: row) + tile + halfH
+                    javaYA = 0
+                    enemyGrounded[i] = true
+                } else {
+                    javaYA = 0
+                    enemyGrounded[i] = false
+                }
+            } else {
+                enemy.position.y = nextY
+                enemyGrounded[i] = false
+            }
+
+            javaYA *= winged ? 0.95 : 0.85
+            if !enemyGrounded[i] {
+                javaYA += winged ? 0.6 : 2.0
+            }
+            enemyVerticalVelocities[i] = javaYA
+            enemyAnimators[i]?.update(dt: dt, direction: direction, onGround: enemyGrounded[i])
 
             if damageInvulnerability <= 0 &&
                 abs(enemy.position.x - mario.position.x) < 20 &&
                 abs(enemy.position.y - mario.position.y) < 24 {
-                if velocity.dy < -0.1 && mario.position.y > enemy.position.y && enemyKinds[i] != 3 && enemyKinds[i] != 4 {
-                    if enemyKinds[i] == 0 || enemyKinds[i] == 1 {
+                if velocity.dy < -0.1 && mario.position.y > enemy.position.y &&
+                    kind != 3 && kind != 4 {
+                    if kind == 0 || kind == 1 {
                         enemyKinds[i] = 5
                         enemy.color = .white
                         enemy.size = CGSize(width: 22, height: 14)
+                        enemyVerticalVelocities[i] = 0
                         score += 100
-                        velocity.dy = 15.2
-                        sound.play(.stomp)
-                        i += 1
-                        continue
+                    } else {
+                        enemy.removeFromParent()
+                        enemies.remove(at: i)
+                        enemyKinds.remove(at: i)
+                        enemyDirections.remove(at: i)
+                        enemyVerticalVelocities.remove(at: i)
+                        enemyGrounded.remove(at: i)
+                        enemyAnimators.remove(at: i)
                     }
-                    enemy.removeFromParent()
-                    enemies.remove(at: i)
-                    enemyKinds.remove(at: i)
-                    enemyDirections.remove(at: i)
-                    enemyAnimators.remove(at: i)
-                    score += 100
-                    velocity.dy = jumpSpeed * 0.55
+                    velocity.dy = 15.2
                     sound.play(.stomp)
-                    continue
-                }
-
-                if isBigMario {
-                    becomeSmallMario()
-                    damageInvulnerability = 1.2
-                    velocity.dy = 6.0
-                    return
+                    if enemy.parent == nil { continue }
                 } else {
-                    die()
-                    return
+                    if isBigMario {
+                        becomeSmallMario()
+                        damageInvulnerability = 1.2
+                        velocity.dy = 6.0
+                        return
+                    } else {
+                        die()
+                        return
+                    }
                 }
             }
-
-            enemyAnimators[i]?.update(dt: dt, direction: direction, onGround: true)
             i += 1
         }
+    }
+
+    private func hasGroundAhead(x: CGFloat, y: CGFloat) -> Bool {
+        let column = Int(floor(x / tile))
+        let row = Int(floor((virtualHeight - y) / tile))
+        return level.isBlocking(column, row, verticalMotion: -1)
     }
 
     private func spawnCoins() {
@@ -843,6 +899,8 @@ final class GameScene: SKScene {
                         enemies.remove(at: index)
                         enemyKinds.remove(at: index)
                         enemyDirections.remove(at: index)
+                        enemyVerticalVelocities.remove(at: index)
+                        enemyGrounded.remove(at: index)
                         enemyAnimators.remove(at: index)
                     }
                     score += 200
