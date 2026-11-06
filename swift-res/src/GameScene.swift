@@ -14,10 +14,17 @@ final class GameScene: SKScene {
     private var leftHeld = false
     private var rightHeld = false
     private var jumpHeld = false
-    private var enemies: [SKSpriteNode] = []
-    private var enemyDirections: [CGFloat] = []
     private var wasJumpHeld = false
 
+    private var enemies: [SKSpriteNode] = []
+    private var enemyDirections: [CGFloat] = []
+
+    private var coins: [SKSpriteNode] = []
+    private var collectedCoins = 0
+    private var questionNodes: [String: SKSpriteNode] = [:]
+    private var usedBlocks = Set<String>()
+
+    private var coinLabel = SKLabelNode()
     private var velocity = CGVector.zero
     private var onGround = false
     private var lastTime: TimeInterval = 0
@@ -36,6 +43,8 @@ final class GameScene: SKScene {
         buildWorld()
         setupCamera()
         spawnEnemies()
+        spawnCoins()
+        addHUD()
         addTouchControls()
     }
 
@@ -53,6 +62,10 @@ final class GameScene: SKScene {
 
         for x in 0..<level.width {
             for y in 0..<level.height where level.tiles[x][y] {
+                if level.questionBlockPositions.contains(where: { $0.x == x && $0.y == y }) {
+                    continue
+                }
+
                 let node = SKSpriteNode(
                     color: y >= 10
                         ? SKColor(red: 0.47, green: 0.29, blue: 0.12, alpha: 1)
@@ -67,6 +80,13 @@ final class GameScene: SKScene {
             }
         }
         worldNode.addChild(levelNode)
+
+        for p in level.questionBlockPositions {
+            let node = makeQuestionBlock(used: false)
+            node.position = tileCenter(x: p.x, row: p.y)
+            worldNode.addChild(node)
+            questionNodes[key(p.x, p.y)] = node
+        }
 
         if let texture = SpriteSheet.texture(
             named: "mariosheet",
@@ -85,6 +105,60 @@ final class GameScene: SKScene {
         worldNode.addChild(mario)
     }
 
+    private func makeQuestionBlock(used: Bool) -> SKSpriteNode {
+        let node = SKSpriteNode(
+            color: used
+                ? SKColor(white: 0.45, alpha: 1)
+                : SKColor(red: 0.95, green: 0.60, blue: 0.12, alpha: 1),
+            size: CGSize(width: tile - 1, height: tile - 1)
+        )
+
+        if !used {
+            let label = SKLabelNode(text: "?")
+            label.fontName = "Menlo-Bold"
+            label.fontSize = 11
+            label.verticalAlignmentMode = .center
+            label.fontColor = .white
+            node.addChild(label)
+        }
+
+        return node
+    }
+
+    private func spawnCoins() {
+        for p in level.coinPositions {
+            let coin = SKShapeNode(circleOfRadius: 5)
+            coin.fillColor = SKColor.yellow
+            coin.strokeColor = SKColor.white
+            coin.lineWidth = 1
+            coin.position = tileCenter(x: p.x, row: p.y)
+            coin.zPosition = 6
+            worldNode.addChild(coin)
+            coins.append(coin)
+
+            let spin = SKAction.sequence([
+                .scaleX(to: 0.25, duration: 0.35),
+                .scaleX(to: 1.0, duration: 0.35)
+            ])
+            coin.run(.repeatForever(spin))
+        }
+    }
+
+    private func addHUD() {
+        coinLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+        coinLabel.fontSize = 12
+        coinLabel.horizontalAlignmentMode = .left
+        coinLabel.verticalAlignmentMode = .top
+        coinLabel.position = CGPoint(x: -145, y: 108)
+        coinLabel.zPosition = 200
+        cameraNode.addChild(coinLabel)
+        updateHUD()
+    }
+
+    private func updateHUD() {
+        coinLabel.text = "COINS  \(collectedCoins)"
+    }
+
     private func setupCamera() {
         cameraNode = SKCameraNode()
         cameraNode.position = CGPoint(x: virtualWidth / 2, y: virtualHeight / 2)
@@ -93,11 +167,11 @@ final class GameScene: SKScene {
     }
 
     private func spawnEnemies() {
-        let positions: [(CGFloat, Int)] = [
-            (360, 0), (520, 0), (700, 0), (940, 0), (1220, 0), (1500, 0), (1840, 0), (2140, 0), (2460, 0), (2860, 0)
+        let positions: [CGFloat] = [
+            360, 520, 700, 940, 1220, 1500, 1840, 2140, 2460, 2860
         ]
 
-        for (x, _) in positions {
+        for x in positions {
             let enemy: SKSpriteNode
             if let texture = SpriteSheet.texture(
                 named: "enemysheet",
@@ -120,17 +194,23 @@ final class GameScene: SKScene {
     }
 
     private func updateEnemies(_ dt: CGFloat) {
-        for i in enemies.indices {
+        var i = 0
+
+        while i < enemies.count {
             let enemy = enemies[i]
             let direction = enemyDirections[i]
             let speed: CGFloat = 28
+
             enemy.position.x += direction * speed * dt
 
             let tileX = Int(floor(enemy.position.x / tile))
             let footRow = Int(floor((virtualHeight - enemy.position.y + 8) / tile))
+            let aheadX = tileX + (direction > 0 ? 1 : -1)
 
-            if level.isSolid(tileX + (direction > 0 ? 1 : -1), footRow) == false {
+            if !level.isSolid(aheadX, footRow) {
                 enemyDirections[i] *= -1
+                i += 1
+                continue
             }
 
             if abs(enemy.position.x - mario.position.x) < 20 &&
@@ -140,18 +220,18 @@ final class GameScene: SKScene {
                     enemies.remove(at: i)
                     enemyDirections.remove(at: i)
                     velocity.dy = jumpSpeed * 0.55
-                    break
-                } else {
-                    mario.position = CGPoint(x: 48, y: worldY(row: 11) + 16)
-                    velocity = .zero
-                    cameraNode.position.x = virtualWidth / 2
-                    break
+                    continue
                 }
+
+                resetMario()
+                return
             }
+
+            i += 1
         }
     }
 
-    private func addTouchControls {
+    private func addTouchControls() {
         let controls = [
             ("LEFT", CGPoint(x: 42, y: 38), 0),
             ("RIGHT", CGPoint(x: 98, y: 38), 1),
@@ -180,6 +260,17 @@ final class GameScene: SKScene {
 
     private func worldY(row: Int) -> CGFloat {
         virtualHeight - CGFloat(row + 1) * tile
+    }
+
+    private func tileCenter(x: Int, row: Int) -> CGPoint {
+        CGPoint(
+            x: CGFloat(x) * tile + tile / 2,
+            y: worldY(row: row) + tile / 2
+        )
+    }
+
+    private func key(_ x: Int, _ y: Int) -> String {
+        "\(x):\(y)"
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -211,8 +302,10 @@ final class GameScene: SKScene {
     }
 
     override func update(_ currentTime: TimeInterval) {
-        let dt = min(CGFloat(1.0 / 60.0),
-                      CGFloat(currentTime - (lastTime == 0 ? currentTime : lastTime)))
+        let dt = min(
+            CGFloat(1.0 / 60.0),
+            CGFloat(currentTime - (lastTime == 0 ? currentTime : lastTime))
+        )
         lastTime = currentTime
 
         let direction = (rightHeld ? 1 : 0) - (leftHeld ? 1 : 0)
@@ -228,8 +321,20 @@ final class GameScene: SKScene {
 
         moveX(velocity.dx * dt)
         moveY(velocity.dy * dt)
+        collectCoins()
         updateEnemies(dt)
         updateCamera()
+    }
+
+    private func collectCoins() {
+        for coin in coins where coin.parent != nil {
+            if abs(coin.position.x - mario.position.x) < 14 &&
+               abs(coin.position.y - mario.position.y) < 20 {
+                coin.removeFromParent()
+                collectedCoins += 1
+                updateHUD()
+            }
+        }
     }
 
     private func moveX(_ amount: CGFloat) {
@@ -260,6 +365,7 @@ final class GameScene: SKScene {
 
         if amount <= 0 {
             let bottom = newY - halfH
+
             if collides(
                 left: mario.position.x - halfW,
                 right: mario.position.x + halfW,
@@ -272,15 +378,18 @@ final class GameScene: SKScene {
                 onGround = true
                 return
             }
+
             onGround = false
         } else {
             let top = newY + halfH
+
             if collides(
                 left: mario.position.x - halfW,
                 right: mario.position.x + halfW,
                 top: top,
                 bottom: newY - halfH
             ) {
+                hitBlock(fromBelow: top)
                 mario.position.y = CGFloat(floor(top / tile)) * tile - halfH - 0.1
                 velocity.dy = 0
                 return
@@ -290,9 +399,54 @@ final class GameScene: SKScene {
         mario.position.y = newY
 
         if mario.position.y < -40 {
-            mario.position = CGPoint(x: 48, y: 160)
-            velocity = .zero
+            resetMario()
         }
+    }
+
+    private func hitBlock(fromBelow top: CGFloat) {
+        let row = Int(floor((virtualHeight - top) / tile))
+        let centerX = Int(floor(mario.position.x / tile))
+
+        for x in (centerX - 1)...(centerX + 1) {
+            let k = key(x, row)
+
+            if level.questionBlockPositions.contains(where: { $0.x == x && $0.y == row }) &&
+               !usedBlocks.contains(k) {
+                usedBlocks.insert(k)
+
+                if let old = questionNodes[k] {
+                    let position = old.position
+                    old.removeFromParent()
+
+                    let used = makeQuestionBlock(used: true)
+                    used.position = position
+                    worldNode.addChild(used)
+                    questionNodes[k] = used
+                }
+
+                spawnBonusCoin(at: tileCenter(x: x, row: row - 1))
+                break
+            }
+        }
+    }
+
+    private func spawnBonusCoin(at position: CGPoint) {
+        let coin = SKShapeNode(circleOfRadius: 5)
+        coin.fillColor = .yellow
+        coin.strokeColor = .white
+        coin.lineWidth = 1
+        coin.position = position
+        coin.zPosition = 12
+        worldNode.addChild(coin)
+
+        let rise = SKAction.moveBy(x: 0, y: 18, duration: 0.16)
+        let fade = SKAction.fadeOut(withDuration: 0.16)
+        coin.run(.group([rise, fade])) {
+            coin.removeFromParent()
+        }
+
+        collectedCoins += 1
+        updateHUD()
     }
 
     private func collides(left: CGFloat, right: CGFloat, top: CGFloat, bottom: CGFloat) -> Bool {
@@ -303,10 +457,19 @@ final class GameScene: SKScene {
 
         for x in minX...maxX {
             for y in minY...maxY {
-                if level.isSolid(x, y) { return true }
+                if level.isSolid(x, y) {
+                    return true
+                }
             }
         }
         return false
+    }
+
+    private func resetMario() {
+        mario.position = CGPoint(x: 48, y: worldY(row: 11) + 16)
+        velocity = .zero
+        onGround = false
+        cameraNode.position.x = virtualWidth / 2
     }
 
     private func updateCamera() {
