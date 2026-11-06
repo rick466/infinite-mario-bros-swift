@@ -29,6 +29,7 @@ final class GameScene: SKScene {
     private var onGround = false
     private var wasOnGround = false
     private var jumpTime: CGFloat = 0
+    private var worldPauseTicks = 0
     private var facing: CGFloat = 1
     private var sliding = false
     private var lastTime: TimeInterval = 0
@@ -126,6 +127,7 @@ final class GameScene: SKScene {
         sliding = false
         facing = 1
         jumpTime = 0
+        worldPauseTicks = 0
         lastTime = 0
         tickAccumulator = 0
         leftHeld = false
@@ -527,6 +529,12 @@ final class GameScene: SKScene {
             updateHUD()
             return
         }
+        if worldPauseTicks > 0 {
+            worldPauseTicks -= 1
+            marioAnimator?.update(dt: dt, velocityX: 0, velocityY: 0, onGround: onGround)
+            updateHUD()
+            return
+        }
 
         damageInvulnerability = max(0, damageInvulnerability - dt)
 
@@ -831,6 +839,7 @@ final class GameScene: SKScene {
                     if isBigMario {
                         becomeSmallMario()
                         damageInvulnerability = 32.0 / 24.0
+                        worldPauseTicks = 18
                         velocity.dy = 6.0
                         return
                     } else {
@@ -1385,6 +1394,7 @@ final class GameScene: SKScene {
                 powerUpDirections.removeValue(forKey: id)
                 powerUpTicks.removeValue(forKey: id)
                 if kind == "flower" { becomeFireMario() } else { becomeBigMario() }
+                worldPauseTicks = 18
                 score += 1000
                 i += 1
                 continue
