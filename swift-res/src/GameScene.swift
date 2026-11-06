@@ -14,6 +14,8 @@ final class GameScene: SKScene {
     private var leftHeld = false
     private var rightHeld = false
     private var jumpHeld = false
+    private var enemies: [SKSpriteNode] = []
+    private var enemyDirections: [CGFloat] = []
     private var wasJumpHeld = false
 
     private var velocity = CGVector.zero
@@ -33,6 +35,7 @@ final class GameScene: SKScene {
         addChild(worldNode)
         buildWorld()
         setupCamera()
+        spawnEnemies()
         addTouchControls()
     }
 
@@ -89,7 +92,66 @@ final class GameScene: SKScene {
         camera = cameraNode
     }
 
-    private func addTouchControls() {
+    private func spawnEnemies() {
+        let positions: [(CGFloat, Int)] = [
+            (360, 0), (520, 0), (700, 0), (940, 0), (1220, 0), (1500, 0), (1840, 0), (2140, 0), (2460, 0), (2860, 0)
+        ]
+
+        for (x, _) in positions {
+            let enemy: SKSpriteNode
+            if let texture = SpriteSheet.texture(
+                named: "enemysheet",
+                cellSize: CGSize(width: 16, height: 16),
+                column: 0,
+                row: 2
+            ) {
+                enemy = SKSpriteNode(texture: texture)
+            } else {
+                enemy = SKSpriteNode(color: .brown, size: CGSize(width: 22, height: 18))
+            }
+
+            enemy.size = CGSize(width: 24, height: 24)
+            enemy.position = CGPoint(x: x, y: worldY(row: 11) + 12)
+            enemy.zPosition = 8
+            worldNode.addChild(enemy)
+            enemies.append(enemy)
+            enemyDirections.append(-1)
+        }
+    }
+
+    private func updateEnemies(_ dt: CGFloat) {
+        for i in enemies.indices {
+            let enemy = enemies[i]
+            let direction = enemyDirections[i]
+            let speed: CGFloat = 28
+            enemy.position.x += direction * speed * dt
+
+            let tileX = Int(floor(enemy.position.x / tile))
+            let footRow = Int(floor((virtualHeight - enemy.position.y + 8) / tile))
+
+            if level.isSolid(tileX + (direction > 0 ? 1 : -1), footRow) == false {
+                enemyDirections[i] *= -1
+            }
+
+            if abs(enemy.position.x - mario.position.x) < 20 &&
+               abs(enemy.position.y - mario.position.y) < 24 {
+                if velocity.dy < -20 && mario.position.y > enemy.position.y {
+                    enemy.removeFromParent()
+                    enemies.remove(at: i)
+                    enemyDirections.remove(at: i)
+                    velocity.dy = jumpSpeed * 0.55
+                    break
+                } else {
+                    mario.position = CGPoint(x: 48, y: worldY(row: 11) + 16)
+                    velocity = .zero
+                    cameraNode.position.x = virtualWidth / 2
+                    break
+                }
+            }
+        }
+    }
+
+    private func addTouchControls {
         let controls = [
             ("LEFT", CGPoint(x: 42, y: 38), 0),
             ("RIGHT", CGPoint(x: 98, y: 38), 1),
@@ -166,6 +228,7 @@ final class GameScene: SKScene {
 
         moveX(velocity.dx * dt)
         moveY(velocity.dy * dt)
+        updateEnemies(dt)
         updateCamera()
     }
 
