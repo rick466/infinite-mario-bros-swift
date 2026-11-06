@@ -37,12 +37,16 @@ struct GameLevel {
     }
 
     private static let tileBehaviors: [UInt8] = {
-        guard let url = Bundle.module.url(forResource: "tiles", withExtension: "dat"),
-              let data = try? Data(contentsOf: url), data.count >= 256 else {
-            // Fallback keeps all non-empty tiles solid until tiles.dat is bundled.
+        if let url = Bundle.module.url(forResource: "tiles", withExtension: "dat"),
+           let data = try? Data(contentsOf: url), data.count >= 256 {
+            return Array(data.prefix(256))
+        }
+        // Exact 256-byte TILE_BEHAVIORS table from the original Java res/tiles.dat.
+        let encoded = "ABQcAIKCgoICAgICAgCKAKKSmqKSkpqSAgACAgIAAgDAwMDAAAAAAAICAAAAAAIAAAAAAAAAAAACAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAgIAAQEBAAICAgACAgIAAgACAAAAAAACAgIAAgICAAICAgAAAAAAAgICAAICAgACAgIAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+        guard let data = Data(base64Encoded: encoded), data.count == 256 else {
             return (0..<256).map { $0 == 0 ? 0 : 2 }
         }
-        return Array(data.prefix(256))
+        return Array(data)
     }()
 
     func isSolid(_ x: Int, _ y: Int) -> Bool {
