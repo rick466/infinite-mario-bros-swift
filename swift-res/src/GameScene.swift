@@ -28,6 +28,9 @@ final class GameScene: SKScene {
     private var collectedCoins = 0
     private var questionNodes: [String: SKSpriteNode] = [:]
     private var usedBlocks = Set<String>()
+    private var powerUps: [SKSpriteNode] = []
+    private var mushroomVelocity: [ObjectIdentifier: CGFloat] = [:]
+    private var mushroomDirections: [ObjectIdentifier: CGFloat] = [:]
 
     private var coinLabel = SKLabelNode()
     private var velocity = CGVector.zero
@@ -446,14 +449,15 @@ final class GameScene: SKScene {
                     questionNodes[k] = used
                 }
 
-                spawnBonusCoin(at: tileCenter(x: x, row: row - 1))
+                spawnMushroom(at: tileCenter(x: x, row: row - 1))
+                sound.play(.powerUp)
                 sound.play(.block)
                 break
             }
         }
     }
 
-    private func spawnBonusCoin(at position: CGPoint) {
+    private func spawnMushroom(at position: CGPoint) {\n        let mushroom = SKShapeNode(circleOfRadius: 7)\n        mushroom.fillColor = .red\n        mushroom.strokeColor = .white\n        mushroom.lineWidth = 1\n        mushroom.position = CGPoint(x: position.x, y: position.y - 4)\n        mushroom.zPosition = 11\n        mushroom.name = "mushroom"\n        worldNode.addChild(mushroom)\n        powerUps.append(mushroom)\n        mushroomVelocity[ObjectIdentifier(mushroom)] = 0\n        mushroomDirections[ObjectIdentifier(mushroom)] = 1\n\n        let pop = SKAction.moveBy(x: 0, y: 16, duration: 0.18)\n        mushroom.run(pop)\n    }\n\n    private func updatePowerUps(_ dt: CGFloat) {\n        var i = 0\n        while i < powerUps.count {\n            let mushroom = powerUps[i]\n            if mushroom.parent == nil {\n                powerUps.remove(at: i)\n                continue\n            }\n            let id = ObjectIdentifier(mushroom)\n            var vy = mushroomVelocity[id] ?? 0\n            let direction = mushroomDirections[id] ?? 1\n            vy = max(vy + gravity * dt, maxFallSpeed)\n            let newY = mushroom.position.y + vy * dt\n            if newY - 7 <= worldY(row: 11) + tile {\n                vy = 0\n            }\n            mushroom.position.y = newY\n            mushroom.position.x += direction * 38 * dt\n            if collides(left: mushroom.position.x - 7, right: mushroom.position.x + 7, top: mushroom.position.y + 7, bottom: mushroom.position.y - 7) {\n                mushroomDirections[id] = -direction\n            }\n            if abs(mushroom.position.x - mario.position.x) < 18 && abs(mushroom.position.y - mario.position.y) < 24 {\n                mushroom.removeFromParent()\n                powerUps.remove(at: i)\n                mushroomVelocity.removeValue(forKey: id)\n                mushroomDirections.removeValue(forKey: id)\n                sound.play(.powerUp)\n                i += 0\n                continue\n            }\n            mushroomVelocity[id] = vy\n            i += 1\n        }\n    }\n\n    private func spawnBonusCoin(at position: CGPoint) {
         let coin = SKShapeNode(circleOfRadius: 5)
         coin.fillColor = .yellow
         coin.strokeColor = .white
