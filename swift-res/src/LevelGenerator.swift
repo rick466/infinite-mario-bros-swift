@@ -283,9 +283,9 @@ struct LevelGenerator {
         for x in 0...width {
             for y in 0...height {
                 let a = blocks[x][y]                 // b[0][0]
-                let b = blocks[x + 1][y]             // b[1][0]
-                let c = blocks[x][y + 1]             // b[0][1]
-                let d = blocks[x + 1][y + 1]         // b[1][1]
+                let b = blocks[min(x + 1, width)][y]             // b[1][0]
+                let c = blocks[x][min(y + 1, height)]             // b[0][1]
+                let d = blocks[min(x + 1, width)][min(y + 1, height)] // b[1][1]
                 var tileID: UInt8?
 
                 if a == b && c == d {
