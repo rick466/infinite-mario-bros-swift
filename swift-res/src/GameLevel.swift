@@ -26,9 +26,18 @@ struct GameLevel {
         self.width = generated.width
         self.height = generated.height
         self.tileIDs = generated.tileIDs
-        self.tiles = generated.tiles
+        self.tiles = generated.tileIDs.map { column in
+            column.map { tileID in
+                (Self.tileBehaviors[Int(tileID)] & 0b0000_0111) != 0
+            }
+        }
         self.questionBlockPositions = generated.questionBlocks
-        self.coinPositions = generated.coins
+        self.coinPositions = generated.tileIDs.enumerated().flatMap { x, column in
+            column.enumerated().compactMap { y, tileID in
+                (Self.tileBehaviors[Int(tileID)] & 0b0100_0000) != 0
+                    ? SIMD2<Int>(x, y) : nil
+            }
+        }
         self.enemyPositions = generated.enemies.map { SIMD2($0.x, $0.y) }
         self.enemyTypes = generated.enemies.map(\.type)
         self.enemyWinged = generated.enemies.map(\.winged)
@@ -48,6 +57,11 @@ struct GameLevel {
         }
         return Array(data)
     }()
+
+    func isPickupable(_ x: Int, _ y: Int) -> Bool {
+        guard x >= 0, x < width, y >= 0, y < height else { return false }
+        return (Self.tileBehaviors[Int(tileIDs[x][y])] & 0b0100_0000) != 0
+    }
 
     func isSolid(_ x: Int, _ y: Int) -> Bool {
         guard y >= 0 else { return false }
