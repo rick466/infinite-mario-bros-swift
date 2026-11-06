@@ -43,6 +43,7 @@ final class GameScene: SKScene {
     private var enemyVerticalVelocities: [CGFloat] = []
     private var enemyGrounded: [Bool] = []
     private var enemyBaseY: [CGFloat] = []
+    private var enemyHorizontalVelocities: [CGFloat] = []
     private var enemyTimers: [Int] = []
     private var enemyAnimators: [EnemyAnimator?] = []
 
@@ -98,6 +99,7 @@ final class GameScene: SKScene {
         enemyVerticalVelocities.removeAll()
         enemyGrounded.removeAll()
         enemyBaseY.removeAll()
+        enemyHorizontalVelocities.removeAll()
         enemyTimers.removeAll()
         enemyAnimators.removeAll()
         coins.removeAll()
@@ -630,6 +632,7 @@ final class GameScene: SKScene {
             enemyVerticalVelocities.append(0)
             enemyGrounded.append(false)
             enemyBaseY.append(enemy.position.y)
+            enemyHorizontalVelocities.append(0)
             enemyTimers.append(0)
             enemyAnimators.append(kind == 2 || kind == 0 || kind == 1 || kind == 3
                 ? EnemyAnimator(node: enemy, type: kind, winged: winged) : nil)
@@ -652,24 +655,48 @@ final class GameScene: SKScene {
                 continue
             }
             if kind == 6 {
-                // Enemy.bumpCheck(): block impact launches the enemy upward,
-                // disables its wings, and starts the Java 100-tick death state.
+                // Enemy.bumpCheck(): xa=-Mario.facing*2, ya=-5; flyDeath lasts 100 ticks.
                 let javaYA = enemyVerticalVelocities[i]
-                enemy.position.x += enemyDirections[i] * 2
+                enemy.position.x += enemyHorizontalVelocities[i]
                 enemy.position.y -= javaYA
-                enemyVerticalVelocities[i] = javaYA * 0.85 + 2
+                enemyVerticalVelocities[i] = javaYA * 0.95 + 1
                 enemyTimers[i] += 1
                 if enemyTimers[i] >= 100 {
-                    enemy.removeFromParent()
-                    enemies.remove(at: i)
-                    enemyKinds.remove(at: i)
-                    enemyDirections.remove(at: i)
-                    enemyVerticalVelocities.remove(at: i)
-                    enemyGrounded.remove(at: i)
-                    enemyBaseY.remove(at: i)
-                    enemyTimers.remove(at: i)
-                    enemyAnimators.remove(at: i)
+                    removeEnemy(at: i)
                     continue
+                }
+                i += 1
+                continue
+            }
+            if kind == 7 || kind == 8 {
+                // Enemy.collideCheck(): stomped enemies remain in deadTime for 10 ticks.
+                enemyTimers[i] += 1
+                if enemyTimers[i] >= 10 {
+                    if kind == 8 {
+                        let shell = SKSpriteNode(
+                            texture: SpriteSheet.texture(
+                                named: "enemysheet",
+                                cellSize: CGSize(width: 16, height: 16),
+                                column: 4,
+                                row: enemyDirections[i] == 0 ? 0 : 1
+                            )
+                        )
+                        shell.size = CGSize(width: 16, height: 16)
+                        shell.position = enemy.position
+                        shell.zPosition = enemy.zPosition
+                        worldNode.addChild(shell)
+                        enemies[i] = shell
+                        enemyKinds[i] = 5
+                        enemyDirections[i] = 0
+                        enemyVerticalVelocities[i] = -5
+                        enemyHorizontalVelocities[i] = 0
+                        enemyTimers[i] = 0
+                        enemyGrounded[i] = false
+                        enemyAnimators[i] = nil
+                    } else {
+                        removeEnemy(at: i)
+                        continue
+                    }
                 }
                 i += 1
                 continue
@@ -749,38 +776,17 @@ final class GameScene: SKScene {
                 abs(enemy.position.y - mario.position.y) < 24 {
                 if velocity.dy < -0.1 && mario.position.y > enemy.position.y &&
                     (!onGround || !wasOnGround) && kind != 3 && kind != 4 {
-                    if kind == 0 || kind == 1 {
-                        let shell = SKSpriteNode(
-                            texture: SpriteSheet.texture(
-                                named: "enemysheet",
-                                cellSize: CGSize(width: 16, height: 16),
-                                column: 4,
-                                row: kind
-                            )
-                        )
-                        shell.size = CGSize(width: 16, height: 16)
-                        shell.position = enemy.position
-                        shell.zPosition = enemy.zPosition
-                        worldNode.addChild(shell)
-                        enemy.removeFromParent()
-                        enemies[i] = shell
-                        enemyKinds[i] = 5
-                        enemyDirections[i] = 0
-                        enemyVerticalVelocities[i] = -5
-                        enemyGrounded[i] = false
-                        enemyAnimators[i] = nil
-                        score += 100
-                    } else {
-                        enemy.removeFromParent()
-                        enemies.remove(at: i)
-                        enemyKinds.remove(at: i)
-                        enemyDirections.remove(at: i)
-                        enemyVerticalVelocities.remove(at: i)
-                        enemyGrounded.remove(at: i)
-                        enemyBaseY.remove(at: i)
-                        enemyTimers.remove(at: i)
-                        enemyAnimators.remove(at: i)
-                    }
+                    enemyKinds[i] = (kind == 0 || kind == 1) ? 8 : 7
+                    enemyTimers[i] = 0
+                    enemyDirections[i] = kind
+                    enemyVerticalVelocities[i] = 0
+                    enemyHorizontalVelocities[i] = 0
+                    enemyGrounded[i] = false
+                    enemy.size = CGSize(width: 16, height: 8)
+                    enemy.position.y -= 4
+                    enemy.removeAllChildren()
+                    enemyAnimators[i] = nil
+                    score += 100
                     velocity.dy = 15.2
                     sound.play(.stomp)
                     if enemy.parent == nil { continue }
@@ -920,6 +926,7 @@ final class GameScene: SKScene {
                     enemyVerticalVelocities.remove(at: other)
                     enemyGrounded.remove(at: other)
                     enemyBaseY.remove(at: other)
+                    enemyHorizontalVelocities.remove(at: other)
                     enemyTimers.remove(at: other)
                     enemyAnimators.remove(at: other)
                     score += 200
@@ -1090,6 +1097,19 @@ final class GameScene: SKScene {
     /// Mirrors LevelScene.bump(): bumpable blocks become tile 4; special
     /// blocks release a power-up, ordinary bumpable blocks release a coin,
     /// and breakable bricks disappear only when Mario is large.
+    private func removeEnemy(at index: Int) {
+        enemies[index].removeFromParent()
+        enemies.remove(at: index)
+        enemyKinds.remove(at: index)
+        enemyDirections.remove(at: index)
+        enemyVerticalVelocities.remove(at: index)
+        enemyGrounded.remove(at: index)
+        enemyBaseY.remove(at: index)
+        enemyHorizontalVelocities.remove(at: index)
+        enemyTimers.remove(at: index)
+        enemyAnimators.remove(at: index)
+    }
+
     /// LevelScene.bumpInto() notifies every enemy whose feet are aligned
     /// with the tile immediately above the block.
     private func bumpEnemies(fromBlockX x: Int, fromBlockY y: Int) {
@@ -1100,11 +1120,13 @@ final class GameScene: SKScene {
             let enemy = enemies[i]
             let enemyLeft = enemy.position.x - enemy.size.width / 2
             let enemyRight = enemy.position.x + enemy.size.width / 2
-            let javaBottom = virtualHeight - (enemy.position.y - enemy.size.height / 2)
-            let enemyRow = Int(floor((javaBottom - 1) / tile))
+            // Java Enemy.bumpCheck() compares yTile with (int)((enemy.y - 1) / 16).
+            let javaY = virtualHeight - enemy.position.y
+            let enemyRow = Int(floor((javaY - 1) / tile))
             guard enemyRight > tileLeft && enemyLeft < tileRight && enemyRow == y else { continue }
             enemyKinds[i] = 6
             enemyDirections[i] = mario.xScale < 0 ? 1 : -1
+            enemyHorizontalVelocities[i] = -enemyDirections[i] * 2
             enemyVerticalVelocities[i] = -5
             enemyTimers[i] = 0
             enemyGrounded[i] = false
@@ -1386,6 +1408,7 @@ final class GameScene: SKScene {
                 enemyVerticalVelocities.remove(at: enemyIndex)
                 enemyGrounded.remove(at: enemyIndex)
                 enemyBaseY.remove(at: enemyIndex)
+                enemyHorizontalVelocities.remove(at: enemyIndex)
                 enemyTimers.remove(at: enemyIndex)
                 enemyAnimators.remove(at: enemyIndex)
                 score += 200
