@@ -4,9 +4,14 @@ struct GameLevel {
     let width: Int
     let height: Int
     var tiles: [[Bool]]
+    var tileIDs: [[UInt8]]
     let questionBlockPositions: [SIMD2<Int>]
     let coinPositions: [SIMD2<Int>]
     let enemyPositions: [SIMD2<Int>]
+    let enemyTypes: [Int]
+    let enemyWinged: [Bool]
+    let exitX: Int
+    let exitY: Int
 
     init(width: Int = 320, height: Int = 15, stage: Int = 0) {
         let types: [LevelGenerator.LevelType] = [.overground, .underground, .castle]
@@ -20,10 +25,15 @@ struct GameLevel {
         )
         self.width = generated.width
         self.height = generated.height
+        self.tileIDs = generated.tileIDs
         self.tiles = generated.tiles
         self.questionBlockPositions = generated.questionBlocks
         self.coinPositions = generated.coins
-        self.enemyPositions = generated.enemies
+        self.enemyPositions = generated.enemies.map { SIMD2($0.x, $0.y) }
+        self.enemyTypes = generated.enemies.map(\.type)
+        self.enemyWinged = generated.enemies.map(\.winged)
+        self.exitX = generated.exitX
+        self.exitY = generated.exitY
     }
 
     func isSolid(_ x: Int, _ y: Int) -> Bool {
