@@ -235,10 +235,13 @@ final class GameScene: SKScene {
 
     private func startStage(_ index: Int) {
         stage = max(0, min(index, stageCount - 1))
-        if shouldResetLives { lives = 3; shouldResetLives = false }
+        if shouldResetLives {
+            lives = 3
+            collectedCoins = 0
+            score = 0
+            shouldResetLives = false
+        }
         level = GameLevel(stage: stage)
-        collectedCoins = 0
-        score = 0
         timeLeft = 3000
         isBigMario = false
         isFireMario = false
@@ -1025,7 +1028,10 @@ final class GameScene: SKScene {
                 mario.position.y = worldY(row: row) - hitHalfH - hitOffset - 0.1
                 velocity.dy = 0
                 for x in sampleXs.map({ Int(floor($0 / tile)) }) {
-                    hitBlock(x: x, y: row)
+                    if level.isBlocking(x, row, verticalMotion: amount) {
+                        hitBlock(x: x, y: row)
+                        break
+                    }
                 }
             } else {
                 mario.position.y = nextY
