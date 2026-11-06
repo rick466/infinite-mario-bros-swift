@@ -771,11 +771,16 @@ final class GameScene: SKScene {
             enemyVerticalVelocities[i] = javaYA
             enemyAnimators[i]?.update(dt: dt, direction: direction, onGround: enemyGrounded[i])
 
-            if damageInvulnerability <= 0 &&
-                abs(enemy.position.x - mario.position.x) < 20 &&
-                abs(enemy.position.y - mario.position.y) < 24 {
-                if velocity.dy < -0.1 && mario.position.y > enemy.position.y &&
-                    (!onGround || !wasOnGround) && kind != 3 && kind != 4 {
+            let marioDeltaY = mario.position.y - enemy.position.y
+            let marioHeight: CGFloat = isBigMario ? 24 : 12
+            let enemyHeight: CGFloat = (kind == 0 || kind == 1) ? 24 : 12
+            // Java Enemy.collideCheck(): horizontal radius is width*2+4 (=12),
+            // and vertical overlap is asymmetric because Java stores the feet anchor.
+            let overlapsMario = abs(enemy.position.x - mario.position.x) < 12 &&
+                marioDeltaY > -marioHeight && marioDeltaY < enemyHeight
+            if damageInvulnerability <= 0 && overlapsMario {
+                if velocity.dy < -0.1 && marioDeltaY >= 0 &&
+                    (!onGround || !wasOnGround) && kind != 3 {
                     enemyKinds[i] = (kind == 0 || kind == 1) ? 8 : 7
                     enemyTimers[i] = 0
                     enemyDirections[i] = kind
@@ -793,7 +798,7 @@ final class GameScene: SKScene {
                 } else {
                     if isBigMario {
                         becomeSmallMario()
-                        damageInvulnerability = 1.2
+                        damageInvulnerability = 32.0 / 24.0
                         velocity.dy = 6.0
                         return
                     } else {
