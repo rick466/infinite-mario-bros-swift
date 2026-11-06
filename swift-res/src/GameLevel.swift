@@ -45,6 +45,38 @@ struct GameLevel {
         self.exitY = generated.exitY
     }
 
+    enum BlockHit { case item, coin, broken, bumped }
+
+    func behavior(at x: Int, _ y: Int) -> UInt8 {
+        guard x >= 0, x < width, y >= 0, y < height else { return 0 }
+        return Self.tileBehaviors[Int(tileIDs[x][y])]
+    }
+
+    mutating func bumpBlock(x: Int, y: Int, canBreak: Bool) -> BlockHit? {
+        let flags = behavior(at: x, y)
+        if flags & 0b0001_0000 != 0 { // BIT_BUMPABLE
+            tileIDs[x][y] = 4 // Java LevelScene.bump() replaces it with used block.
+            tiles[x][y] = true
+            return flags & 0b0000_1000 != 0 ? .item : .coin
+        }
+        if flags & 0b0010_0000 != 0 { // BIT_BREAKABLE
+            if canBreak {
+                tileIDs[x][y] = 0
+                tiles[x][y] = false
+                return .broken
+            }
+            return .bumped
+        }
+        return nil
+    }
+
+    mutating func collectPickupable(x: Int, y: Int) -> Bool {
+        guard behavior(at: x, y) & 0b0100_0000 != 0 else { return false }
+        tileIDs[x][y] = 0
+        tiles[x][y] = false
+        return true
+    }
+
     private static let tileBehaviors: [UInt8] = {
         if let url = Bundle.module.url(forResource: "tiles", withExtension: "dat"),
            let data = try? Data(contentsOf: url), data.count >= 256 {
