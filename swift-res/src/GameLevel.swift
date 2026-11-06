@@ -31,7 +31,12 @@ struct GameLevel {
                 (Self.tileBehaviors[Int(tileID)] & 0b0000_0111) != 0
             }
         }
-        self.questionBlockPositions = generated.questionBlocks
+        self.questionBlockPositions = generated.tileIDs.enumerated().flatMap { x, column in
+            column.enumerated().compactMap { y, tileID in
+                (Self.tileBehaviors[Int(tileID)] & 0b0011_0000) != 0
+                    ? SIMD2<Int>(x, y) : nil
+            }
+        }
         self.coinPositions = generated.tileIDs.enumerated().flatMap { x, column in
             column.enumerated().compactMap { y, tileID in
                 (Self.tileBehaviors[Int(tileID)] & 0b0100_0000) != 0
