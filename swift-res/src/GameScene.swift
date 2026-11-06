@@ -257,11 +257,17 @@ final class GameScene: SKScene {
         for x in 0..<level.width {
             for y in 0..<level.height where level.tiles[x][y] {
                 if level.questionBlockPositions.contains(where: { $0.x == x && $0.y == y }) { continue }
-                let node = SKSpriteNode(color: .brown, size: CGSize(width: tile, height: tile))
-                node.position = tileCenter(x: x, row: y)
-                if let texture = SpriteSheet.texture(named: "mapsheet", cellSize: CGSize(width: 16, height: 16), column: 1, row: 9) {
-                    node.texture = texture
+                let tileID = Int(level.tileIDs[x][y])
+                let column = tileID % 16
+                let row = tileID / 16
+                let node: SKSpriteNode
+                if let texture = SpriteSheet.texture(named: "mapsheet", cellSize: CGSize(width: 16, height: 16), column: column, row: row) {
+                    node = SKSpriteNode(texture: texture)
+                } else {
+                    node = SKSpriteNode(color: .brown, size: CGSize(width: tile, height: tile))
                 }
+                node.size = CGSize(width: tile, height: tile)
+                node.position = tileCenter(x: x, row: y)
                 levelNode.addChild(node)
             }
         }
@@ -551,32 +557,34 @@ final class GameScene: SKScene {
 
     private func spawnEnemies() {
         for (index, p) in level.enemyPositions.enumerated() {
-            let kind = index % 3
-            let enemy: SKSpriteNode
-            if kind == 0, let texture = SpriteSheet.texture(named: "enemysheet", cellSize: CGSize(width: 16, height: 16), column: 0, row: 2) {
-                enemy = SKSpriteNode(texture: texture)
-                enemy.size = CGSize(width: 24, height: 24)
-            } else if kind == 1 {
-                enemy = SKSpriteNode(color: .green, size: CGSize(width: 24, height: 20))
-                let shell = SKShapeNode(circleOfRadius: 9)
-                shell.fillColor = .green
-                shell.strokeColor = .white
-                enemy.addChild(shell)
-            } else {
-                enemy = SKSpriteNode(color: .purple, size: CGSize(width: 22, height: 18))
-                let wing = SKShapeNode(ellipseOf: CGSize(width: 30, height: 10))
-                wing.fillColor = .white
-                wing.strokeColor = .white
-                wing.position = CGPoint(x: 0, y: 7)
-                enemy.addChild(wing)
-            }
-            enemy.position = tileCenter(x: p.x, row: p.y)
+            let kind = level.enemyTypes[index]
+            let winged = level.enemyWinged[index]
+            let row = kind == 4 ? 6 : kind
+            let texture = SpriteSheet.texture(
+                named: "enemysheet",
+                cellSize: CGSize(width: 16, height: 16),
+                column: 0,
+                row: row
+            )
+            let enemy = texture.map { SKSpriteNode(texture: $0) }
+                ?? SKSpriteNode(color: kind == 3 ? .red : .brown, size: CGSize(width: 16, height: 16))
+            enemy.size = kind == 4 ? CGSize(width: 32, height: 32) : CGSize(width: 16, height: 16)
+            enemy.position = CGPoint(x: CGFloat(p.x) * tile + 8, y: worldY(row: p.y) + (kind == 4 ? 24 : 15))
             enemy.zPosition = 8
+            if winged {
+                let wings = SKShapeNode(ellipseOf: CGSize(width: 26, height: 8))
+                wings.fillColor = .white
+                wings.strokeColor = .clear
+                wings.position = CGPoint(x: 0, y: 8)
+                wings.name = "wings"
+                enemy.addChild(wings)
+            }
             worldNode.addChild(enemy)
             enemies.append(enemy)
             enemyKinds.append(kind)
             enemyDirections.append(index.isMultiple(of: 2) ? -1 : 1)
-            enemyAnimators.append(kind == 0 ? EnemyAnimator(node: enemy) : nil)
+            enemyAnimators.append(kind == 2 || kind == 0 || kind == 1 || kind == 3
+                ? EnemyAnimator(node: enemy, type: kind, winged: winged) : nil)
         }
     }
 
@@ -585,13 +593,13 @@ final class GameScene: SKScene {
         while i < enemies.count {
             let enemy = enemies[i]
             let direction = enemyDirections[i]
-            let speed: CGFloat = enemyKinds[i] == 2 ? 38 : 28
+            let speed: CGFloat = 1.75 * 24
             enemy.position.x += direction * speed * dt
 
             let tileX = Int(floor(enemy.position.x / tile))
             let footRow = Int(floor((virtualHeight - enemy.position.y + 8) / tile))
             let aheadX = tileX + (direction > 0 ? 1 : -1)
-            if !level.isSolid(aheadX, footRow) {
+            if enemyKinds[i] == 0 && !level.isSolid(aheadX, footRow) {
                 enemyDirections[i] *= -1
                 i += 1
                 continue
@@ -600,9 +608,9 @@ final class GameScene: SKScene {
             if damageInvulnerability <= 0 &&
                 abs(enemy.position.x - mario.position.x) < 20 &&
                 abs(enemy.position.y - mario.position.y) < 24 {
-                if velocity.dy < -20 && mario.position.y > enemy.position.y {
-                    if enemyKinds[i] == 1 {
-                        enemyKinds[i] = 3
+                if velocity.dy < -20 && mario.position.y > enemy.position.y && enemyKinds[i] != 3 && enemyKinds[i] != 4 {
+                    if enemyKinds[i] == 0 || enemyKinds[i] == 1 {
+                        enemyKinds[i] = 5
                         enemy.color = .white
                         enemy.size = CGSize(width: 22, height: 14)
                         score += 100
