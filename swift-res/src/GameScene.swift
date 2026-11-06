@@ -934,6 +934,7 @@ final class GameScene: SKScene {
             if abs(coin.position.x - mario.position.x) < 14 && abs(coin.position.y - mario.position.y) < 20 {
                 coin.removeFromParent()
                 addCoin()
+                score += 100
                 sound.play(.coin)
             }
         }
@@ -1119,7 +1120,6 @@ final class GameScene: SKScene {
 
     private func addCoin() {
         collectedCoins += 1
-        score += 200
         if collectedCoins >= 100 {
             collectedCoins -= 100
             lives = min(99, lives + 1)
@@ -1190,7 +1190,7 @@ final class GameScene: SKScene {
         powerUps.append(power)
         let id = ObjectIdentifier(power)
         powerUpKinds[id] = kind
-        powerUpVelocity[id] = CGVector(dx: 0, dy: -1)
+        powerUpVelocity[id] = .zero
         powerUpDirections[id] = 1
         powerUpTicks[id] = 0
     }
