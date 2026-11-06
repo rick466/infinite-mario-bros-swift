@@ -41,6 +41,8 @@ final class GameScene: SKScene {
     /// Enemy vertical velocity uses Java's screen-down-positive units per tick.
     private var enemyVerticalVelocities: [CGFloat] = []
     private var enemyGrounded: [Bool] = []
+    private var enemyBaseY: [CGFloat] = []
+    private var enemyTimers: [Int] = []
     private var enemyAnimators: [EnemyAnimator?] = []
 
     private var coins: [SKShapeNode] = []
@@ -59,7 +61,7 @@ final class GameScene: SKScene {
     private var collectedCoins = 0
     private var score = 0
     private var lives = 3
-    private var timeLeft: CGFloat = 300
+    private var timeLeft: CGFloat = 3000
     private var goalX: CGFloat = 0
 
     private var hudLabel = SKLabelNode()
@@ -91,6 +93,8 @@ final class GameScene: SKScene {
         enemyDirections.removeAll()
         enemyVerticalVelocities.removeAll()
         enemyGrounded.removeAll()
+        enemyBaseY.removeAll()
+        enemyTimers.removeAll()
         enemyAnimators.removeAll()
         coins.removeAll()
         powerUps.removeAll()
@@ -228,7 +232,7 @@ final class GameScene: SKScene {
         level = GameLevel(stage: stage)
         collectedCoins = 0
         score = 0
-        timeLeft = 300
+        timeLeft = 3000
         isBigMario = false
         isFireMario = false
         screenState = .playing
@@ -389,7 +393,7 @@ final class GameScene: SKScene {
 
     private func updateHUD() {
         let fire = isFireMario ? " FIRE" : ""
-        hudLabel.text = "MARIO \(lives)   COIN \(String(format: "%02d", collectedCoins))   SCORE \(score)   WORLD 1-\(stage + 1)   TIME \(max(0, Int(timeLeft)))\(fire)"
+        hudLabel.text = "MARIO \(lives)   COIN \(String(format: "%02d", collectedCoins))   SCORE \(score)   WORLD 1-\(stage + 1)   TIME \(max(0, Int(timeLeft / 15)))\(fire)"
     }
 
     private func setupCamera() {
@@ -503,7 +507,7 @@ final class GameScene: SKScene {
     }
 
     private func simulateGameTick(dt: CGFloat) {
-        timeLeft -= dt
+        timeLeft -= 1
         if timeLeft <= 0 {
             timeLeft = 0
             die()
@@ -619,6 +623,8 @@ final class GameScene: SKScene {
             enemyDirections.append(index.isMultiple(of: 2) ? -1 : 1)
             enemyVerticalVelocities.append(0)
             enemyGrounded.append(false)
+            enemyBaseY.append(enemy.position.y)
+            enemyTimers.append(0)
             enemyAnimators.append(kind == 2 || kind == 0 || kind == 1 || kind == 3
                 ? EnemyAnimator(node: enemy, type: kind, winged: winged) : nil)
         }
@@ -636,6 +642,23 @@ final class GameScene: SKScene {
 
             if kind == 5 {
                 updateShell(at: i, dt: dt)
+                i += 1
+                continue
+            }
+            if kind == 4 {
+                updateFlowerEnemy(at: i)
+                if damageInvulnerability <= 0 &&
+                    abs(enemy.position.x - mario.position.x) < 14 &&
+                    abs(enemy.position.y - mario.position.y) < 24 {
+                    if isBigMario {
+                        becomeSmallMario()
+                        damageInvulnerability = 1.2
+                    } else {
+                        die()
+                        return
+                    }
+                }
+                enemyAnimators[i]?.update(dt: dt, direction: 1, onGround: true)
                 i += 1
                 continue
             }
@@ -725,6 +748,8 @@ final class GameScene: SKScene {
                         enemyDirections.remove(at: i)
                         enemyVerticalVelocities.remove(at: i)
                         enemyGrounded.remove(at: i)
+                        enemyBaseY.remove(at: i)
+                        enemyTimers.remove(at: i)
                         enemyAnimators.remove(at: i)
                     }
                     velocity.dy = 15.2
@@ -744,6 +769,30 @@ final class GameScene: SKScene {
             }
             i += 1
         }
+    }
+
+    /// FlowerEnemy.move() port: fixed horizontal position and periodic vertical rise.
+    private func updateFlowerEnemy(at index: Int) {
+        let flower = enemies[index]
+        let baseY = enemyBaseY[index]
+        var javaYA = enemyVerticalVelocities[index]
+
+        if flower.position.y <= baseY {
+            flower.position.y = baseY
+            enemyTimers[index] += 1
+            if enemyTimers[index] > 40 && abs(mario.position.x - flower.position.x) > 24 {
+                javaYA = -8
+            } else {
+                javaYA = 0
+            }
+        } else {
+            enemyTimers[index] = 0
+        }
+
+        flower.position.y -= javaYA
+        javaYA *= 0.9
+        javaYA += 0.1
+        enemyVerticalVelocities[index] = javaYA
     }
 
     /// Shell.move() port. Stationary shells are safe to touch and can be kicked;
@@ -830,6 +879,8 @@ final class GameScene: SKScene {
                     enemyDirections.remove(at: other)
                     enemyVerticalVelocities.remove(at: other)
                     enemyGrounded.remove(at: other)
+                    enemyBaseY.remove(at: other)
+                    enemyTimers.remove(at: other)
                     enemyAnimators.remove(at: other)
                     score += 200
                     if other < index { return }
@@ -1096,6 +1147,8 @@ final class GameScene: SKScene {
                 enemyDirections.remove(at: enemyIndex)
                 enemyVerticalVelocities.remove(at: enemyIndex)
                 enemyGrounded.remove(at: enemyIndex)
+                enemyBaseY.remove(at: enemyIndex)
+                enemyTimers.remove(at: enemyIndex)
                 enemyAnimators.remove(at: enemyIndex)
                 score += 200
                 sound.play(.stomp)
