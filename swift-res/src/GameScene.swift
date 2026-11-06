@@ -16,6 +16,9 @@ final class GameScene: SKScene {
     private var rightHeld = false
     private var jumpHeld = false
     private var wasJumpHeld = false
+    private var jumpTime: CGFloat = 0
+    private var wasOnGround = false
+    private let sound = SoundManager()
 
     private var enemies: [SKSpriteNode] = []
     private var enemyDirections: [CGFloat] = []
@@ -32,9 +35,9 @@ final class GameScene: SKScene {
     private var lastTime: TimeInterval = 0
 
     private let runSpeed: CGFloat = 105
-    private let jumpSpeed: CGFloat = 335
-    private let gravity: CGFloat = -900
-    private let maxFallSpeed: CGFloat = -430
+    private let jumpSpeed: CGFloat = 315
+    private let gravity: CGFloat = -1050
+    private let maxFallSpeed: CGFloat = -520
 
     override func didMove(to view: SKView) {
         scaleMode = .aspectFit
@@ -222,6 +225,7 @@ final class GameScene: SKScene {
                     enemyDirections.remove(at: i)
                     enemyAnimators.remove(at: i)
                     velocity.dy = jumpSpeed * 0.55
+                    sound.play(.stomp)
                     continue
                 }
 
@@ -314,9 +318,22 @@ final class GameScene: SKScene {
         let direction = (rightHeld ? 1 : 0) - (leftHeld ? 1 : 0)
         velocity.dx = CGFloat(direction) * runSpeed
 
+        wasOnGround = onGround
+
         if jumpHeld && !wasJumpHeld && onGround {
             velocity.dy = jumpSpeed
             onGround = false
+            jumpTime = 0
+            sound.play(.jump)
+        }
+        if jumpHeld && !onGround && velocity.dy > 0 {
+            jumpTime += dt
+            if jumpTime < 0.16 {
+                velocity.dy += 260 * dt
+            }
+        }
+        if !jumpHeld && velocity.dy > 120 {
+            velocity.dy *= 0.72
         }
         wasJumpHeld = jumpHeld
 
@@ -336,6 +353,7 @@ final class GameScene: SKScene {
                abs(coin.position.y - mario.position.y) < 20 {
                 coin.removeFromParent()
                 collectedCoins += 1
+                sound.play(.coin)
                 updateHUD()
             }
         }
