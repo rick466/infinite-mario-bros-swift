@@ -633,6 +633,12 @@ final class GameScene: SKScene {
             let kind = enemyKinds[i]
             var direction = enemyDirections[i]
             let winged = enemy.childNode(withName: "wings") != nil
+
+            if kind == 5 {
+                updateShell(at: i, dt: dt)
+                i += 1
+                continue
+            }
             let halfW: CGFloat = 6
             let halfH: CGFloat = 7
 
@@ -692,10 +698,25 @@ final class GameScene: SKScene {
                 if velocity.dy < -0.1 && mario.position.y > enemy.position.y &&
                     kind != 3 && kind != 4 {
                     if kind == 0 || kind == 1 {
+                        let shell = SKSpriteNode(
+                            texture: SpriteSheet.texture(
+                                named: "enemysheet",
+                                cellSize: CGSize(width: 16, height: 16),
+                                column: 4,
+                                row: kind
+                            )
+                        )
+                        shell.size = CGSize(width: 16, height: 16)
+                        shell.position = enemy.position
+                        shell.zPosition = enemy.zPosition
+                        worldNode.addChild(shell)
+                        enemy.removeFromParent()
+                        enemies[i] = shell
                         enemyKinds[i] = 5
-                        enemy.color = .white
-                        enemy.size = CGSize(width: 22, height: 14)
-                        enemyVerticalVelocities[i] = 0
+                        enemyDirections[i] = 0
+                        enemyVerticalVelocities[i] = -5
+                        enemyGrounded[i] = false
+                        enemyAnimators[i] = nil
                         score += 100
                     } else {
                         enemy.removeFromParent()
@@ -722,6 +743,96 @@ final class GameScene: SKScene {
                 }
             }
             i += 1
+        }
+    }
+
+    /// Shell.move() port. Stationary shells are safe to touch and can be kicked;
+    /// moving shells damage Mario and defeat other ordinary enemies.
+    private func updateShell(at index: Int, dt: CGFloat) {
+        let shell = enemies[index]
+        var direction = enemyDirections[index]
+        var javaYA = enemyVerticalVelocities[index]
+        let halfW: CGFloat = 4
+        let halfH: CGFloat = 6
+
+        if direction != 0 {
+            let nextX = shell.position.x + direction * 11
+            if collides(
+                left: nextX - halfW, right: nextX + halfW,
+                top: shell.position.y + halfH, bottom: shell.position.y - halfH,
+                verticalMotion: 0
+            ) {
+                direction = -direction
+                enemyDirections[index] = direction
+                sound.play(.stomp)
+            } else {
+                shell.position.x = nextX
+            }
+        }
+
+        let spriteDeltaY = -javaYA
+        let nextY = shell.position.y + spriteDeltaY
+        if collides(
+            left: shell.position.x - halfW, right: shell.position.x + halfW,
+            top: nextY + halfH, bottom: nextY - halfH,
+            verticalMotion: spriteDeltaY
+        ) {
+            if spriteDeltaY < 0 {
+                let row = Int(floor((virtualHeight - (nextY - halfH)) / tile))
+                shell.position.y = worldY(row: row) + tile + halfH
+                javaYA = 0
+                enemyGrounded[index] = true
+            } else {
+                javaYA = 0
+                enemyGrounded[index] = false
+            }
+        } else {
+            shell.position.y = nextY
+            enemyGrounded[index] = false
+        }
+        javaYA *= 0.85
+        if !enemyGrounded[index] { javaYA += 2 }
+        enemyVerticalVelocities[index] = javaYA
+
+        if abs(shell.position.x - mario.position.x) < 16 &&
+            abs(shell.position.y - mario.position.y) < 20 {
+            if direction == 0 {
+                enemyDirections[index] = mario.position.x < shell.position.x ? 1 : -1
+                sound.play(.stomp)
+            } else if damageInvulnerability <= 0 {
+                if isBigMario {
+                    becomeSmallMario()
+                    damageInvulnerability = 1.2
+                    velocity.dy = 6
+                } else {
+                    die()
+                }
+            }
+        }
+
+        if direction != 0 {
+            var other = 0
+            while other < enemies.count {
+                if other == index || enemyKinds[other] == 5 {
+                    other += 1
+                    continue
+                }
+                let target = enemies[other]
+                if abs(target.position.x - shell.position.x) < 15 &&
+                    abs(target.position.y - shell.position.y) < 16 {
+                    target.removeFromParent()
+                    enemies.remove(at: other)
+                    enemyKinds.remove(at: other)
+                    enemyDirections.remove(at: other)
+                    enemyVerticalVelocities.remove(at: other)
+                    enemyGrounded.remove(at: other)
+                    enemyAnimators.remove(at: other)
+                    score += 200
+                    if other < index { return }
+                    continue
+                }
+                other += 1
+            }
         }
     }
 
