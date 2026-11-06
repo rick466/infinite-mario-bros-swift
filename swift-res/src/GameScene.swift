@@ -447,6 +447,7 @@ final class GameScene: SKScene {
                 }
 
                 spawnBonusCoin(at: tileCenter(x: x, row: row - 1))
+                sound.play(.block)
                 break
             }
         }
@@ -468,6 +469,7 @@ final class GameScene: SKScene {
         }
 
         collectedCoins += 1
+        sound.play(.coin)
         updateHUD()
     }
 
