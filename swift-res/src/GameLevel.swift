@@ -4,15 +4,20 @@ struct GameLevel {
     let width: Int
     let height: Int
     var tiles: [[Bool]]
+    let questionBlockPositions: [SIMD2<Int>]
+    let coinPositions: [SIMD2<Int>]
 
     init(width: Int = 220, height: Int = 15) {
         self.width = width
         self.height = height
+
         var t = Array(repeating: Array(repeating: false, count: height), count: width)
 
         for x in 0..<width {
             let floor = 12 - ((x / 31) % 3)
-            for y in floor..<height { t[x][y] = true }
+            for y in floor..<height {
+                t[x][y] = true
+            }
         }
 
         for x in 18..<24 { t[x][9] = true }
@@ -30,9 +35,33 @@ struct GameLevel {
 
         for x in [37, 38, 39, 62, 63, 93, 94, 127, 128, 164, 165, 184, 185] {
             if x < width {
-                for y in 10..<height { t[x][y] = false }
+                for y in 10..<height {
+                    t[x][y] = false
+                }
             }
         }
+
+        let blocks: [SIMD2<Int>] = [
+            .init(21, 7), .init(31, 5), .init(46, 7),
+            .init(58, 6), .init(73, 4), .init(87, 7),
+            .init(104, 5), .init(121, 7), .init(138, 4),
+            .init(157, 6), .init(178, 7), .init(197, 5)
+        ]
+
+        for p in blocks where p.x >= 0 && p.x < width && p.y >= 0 && p.y < height {
+            t[p.x][p.y] = true
+        }
+
+        questionBlockPositions = blocks
+
+        coinPositions = [
+            .init(20, 8), .init(22, 8), .init(31, 6),
+            .init(32, 6), .init(46, 8), .init(48, 8),
+            .init(58, 7), .init(73, 5), .init(74, 5),
+            .init(87, 8), .init(104, 6), .init(121, 8),
+            .init(138, 5), .init(157, 7), .init(178, 8),
+            .init(197, 6)
+        ]
 
         tiles = t
     }
