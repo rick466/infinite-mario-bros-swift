@@ -718,8 +718,8 @@ final class GameScene: SKScene {
                 i += 1
                 continue
             }
-            let halfW: CGFloat = 6
-            let halfH: CGFloat = 7
+            let halfW: CGFloat = 4
+            let halfH: CGFloat = (kind == 0 || kind == 1) ? 12 : 6
 
             if direction == 0 { direction = 1 }
             let nextX = enemy.position.x + direction * 1.75
@@ -738,10 +738,7 @@ final class GameScene: SKScene {
                 enemy.position.x = nextX
             }
 
-            var javaYA = enemyVerticalVelocities[i]
-            if enemyGrounded[i] && winged {
-                javaYA = -10
-            }
+            let javaYA = enemyVerticalVelocities[i]
             let spriteDeltaY = -javaYA
             let nextY = enemy.position.y + spriteDeltaY
             let verticalBlocked = collides(
@@ -765,7 +762,9 @@ final class GameScene: SKScene {
             }
 
             javaYA *= winged ? 0.95 : 0.85
-            if !enemyGrounded[i] {
+            if enemyGrounded[i] && winged {
+                javaYA = -10
+            } else if !enemyGrounded[i] {
                 javaYA += winged ? 0.6 : 2.0
             }
             enemyVerticalVelocities[i] = javaYA
