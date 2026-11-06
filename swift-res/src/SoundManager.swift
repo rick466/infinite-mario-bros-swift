@@ -1,7 +1,7 @@
 import AVFoundation
 
 final class SoundManager {
-    enum Effect: Hashable { case jump, coin, stomp, block, powerUp, fireball }
+    enum Effect: Hashable { case jump, coin, stomp, block, powerUp, fireball, oneUp }
     private var players: [Effect: AVAudioPlayer] = [:]
     private var bgm: AVAudioPlayer?
 
@@ -16,6 +16,7 @@ final class SoundManager {
         load(.block, "breakblock.wav")
         load(.powerUp, "powerup.wav")
         load(.fireball, "fireball.wav")
+        load(.oneUp, "1-up.wav")
         startBGM()
     }
 
