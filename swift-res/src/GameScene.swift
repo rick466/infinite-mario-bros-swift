@@ -47,7 +47,7 @@ final class GameScene: SKScene {
     private var enemyAnimators: [EnemyAnimator?] = []
 
     private var coins: [SKShapeNode] = []
-    private var powerUps: [SKShapeNode] = []
+    private var powerUps: [SKSpriteNode] = []
     private var powerUpKinds: [ObjectIdentifier: String] = [:]
     private var powerUpVelocity: [ObjectIdentifier: CGVector] = [:]
     private var powerUpDirections: [ObjectIdentifier: CGFloat] = [:]
@@ -1079,9 +1079,8 @@ final class GameScene: SKScene {
             sound.play(.block)
         }
         usedBlocks.insert(k)
-        if let node = questionNodes[k], result == .item || result == .coin {
-            node.color = SKColor(white: 0.45, alpha: 1)
-            node.removeAllChildren()
+        if result == .item || result == .coin {
+            questionNodes.removeValue(forKey: k)
         }
         score += result == .coin ? 200 : (result == .item ? 200 : 0)
     }
@@ -1101,6 +1100,10 @@ final class GameScene: SKScene {
     private func refreshTile(x: Int, y: Int) {
         let k = key(x, y)
         tileNodes[k]?.removeFromParent()
+        if let oldQuestion = questionNodes[k] {
+            oldQuestion.removeFromParent()
+            questionNodes.removeValue(forKey: k)
+        }
         guard level.tileIDs[x][y] != 0 else {
             tileNodes.removeValue(forKey: k)
             questionNodes.removeValue(forKey: k)
@@ -1181,8 +1184,6 @@ final class GameScene: SKScene {
             power = SKSpriteNode(color: kind == "flower" ? .yellow : .red, size: CGSize(width: 16, height: 16))
         }
         power.size = CGSize(width: 16, height: 16)
-        power.fillColor = kind == "flower" ? .yellow : .red
-        power.strokeColor = .white
         power.position = CGPoint(x: position.x, y: position.y + 4)
         power.zPosition = 12
         worldNode.addChild(power)
