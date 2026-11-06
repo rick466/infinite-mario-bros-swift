@@ -9,7 +9,13 @@ final class GameScene: SKScene {
     private var mario = SKSpriteNode()
     private var marioAnimator: MarioAnimator?
     private var isBigMario = true
+    private var isFireMario = false
     private var damageInvulnerability: CGFloat = 0
+    private var firePressed = false
+    private var wasFirePressed = false
+    private var fireballs: [SKShapeNode] = []
+    private var fireballVelocity: [ObjectIdentifier: CGVector] = [:]
+    private var winLabel = SKLabelNode()
     private var level = GameLevel()
     private let worldNode = SKNode()
     private var cameraNode = SKCameraNode()
@@ -33,6 +39,7 @@ final class GameScene: SKScene {
     private var powerUps: [SKSpriteNode] = []
     private var mushroomVelocity: [ObjectIdentifier: CGFloat] = [:]
     private var mushroomDirections: [ObjectIdentifier: CGFloat] = [:]
+    private var powerUpKinds: [ObjectIdentifier: String] = [:]
 
     private var coinLabel = SKLabelNode()
     private var velocity = CGVector.zero
@@ -112,7 +119,7 @@ final class GameScene: SKScene {
         }
 
         mario.size = CGSize(width: 32, height: 32)
-        mario.position = CGPoint(x: 48, y: worldY(row: 10) + 16)
+        mario.position = CGPoint(x: 48, y: worldY(row: 10) + (isBigMario ? 16 : 8))
         mario.zPosition = 10
         worldNode.addChild(mario)
     }
@@ -168,7 +175,7 @@ final class GameScene: SKScene {
     }
 
     private func updateHUD() {
-        coinLabel.text = "COINS  \(collectedCoins)"
+        coinLabel.text = isFireMario ? "COINS  \(collectedCoins)  FIRE" : "COINS  \(collectedCoins)"
     }
 
     private func setupCamera() {
@@ -234,7 +241,13 @@ final class GameScene: SKScene {
                     continue
                 }
 
-                resetMario()
+                if isBigMario {
+                    becomeSmallMario()
+                    damageInvulnerability = 1.2
+                    velocity.dy = 180
+                } else {
+                    resetMario()
+                }
                 return
             }
 
@@ -247,7 +260,8 @@ final class GameScene: SKScene {
         let controls = [
             ("LEFT", CGPoint(x: 42, y: 38), 0),
             ("RIGHT", CGPoint(x: 98, y: 38), 1),
-            ("JUMP", CGPoint(x: virtualWidth - 58, y: 38), 2)
+            ("JUMP", CGPoint(x: virtualWidth - 88, y: 38), 2),
+            ("FIRE", CGPoint(x: virtualWidth - 28, y: 78), 3)
         ]
 
         for (title, position, type) in controls {
@@ -308,8 +322,10 @@ final class GameScene: SKScene {
             leftHeld = pressed
         } else if p.x < 128 && p.y < 72 {
             rightHeld = pressed
-        } else if p.x > virtualWidth - 120 && p.y < 72 {
+        } else if p.x > virtualWidth - 145 && p.y < 72 {
             jumpHeld = pressed
+        } else if p.x > virtualWidth - 75 && p.y < 115 {
+            firePressed = pressed
         }
     }
 
@@ -341,6 +357,8 @@ final class GameScene: SKScene {
             velocity.dy *= 0.72
         }
         wasJumpHeld = jumpHeld
+        if firePressed && !wasFirePressed && isFireMario { spawnFireball() }
+        wasFirePressed = firePressed
 
         velocity.dy = max(velocity.dy + gravity * dt, maxFallSpeed)
 
@@ -350,6 +368,21 @@ final class GameScene: SKScene {
         updateEnemies(dt)
         marioAnimator?.update(dt: dt)
         updateCamera()
+        checkGoal()
+    }
+
+    private func checkGoal() {
+        if mario.position.x >= CGFloat(level.width - 8) * tile {
+            if winLabel.parent == nil {
+                winLabel = SKLabelNode(fontNamed: "Menlo-Bold")
+                winLabel.text = "COURSE CLEAR!"
+                winLabel.fontSize = 24
+                winLabel.fontColor = .white
+                winLabel.position = CGPoint(x: 0, y: 10)
+                winLabel.zPosition = 500
+                cameraNode.addChild(winLabel)
+            }
+        }
     }
 
     private func collectCoins() {
@@ -459,7 +492,150 @@ final class GameScene: SKScene {
         }
     }
 
-    private func spawnMushroom(at position: CGPoint) {\n        let mushroom = SKShapeNode(circleOfRadius: 7)\n        mushroom.fillColor = .red\n        mushroom.strokeColor = .white\n        mushroom.lineWidth = 1\n        mushroom.position = CGPoint(x: position.x, y: position.y - 4)\n        mushroom.zPosition = 11\n        mushroom.name = "mushroom"\n        worldNode.addChild(mushroom)\n        powerUps.append(mushroom)\n        mushroomVelocity[ObjectIdentifier(mushroom)] = 0\n        mushroomDirections[ObjectIdentifier(mushroom)] = 1\n\n        let pop = SKAction.moveBy(x: 0, y: 16, duration: 0.18)\n        mushroom.run(pop)\n    }\n\n    private func updatePowerUps(_ dt: CGFloat) {\n        var i = 0\n        while i < powerUps.count {\n            let mushroom = powerUps[i]\n            if mushroom.parent == nil {\n                powerUps.remove(at: i)\n                continue\n            }\n            let id = ObjectIdentifier(mushroom)\n            var vy = mushroomVelocity[id] ?? 0\n            let direction = mushroomDirections[id] ?? 1\n            vy = max(vy + gravity * dt, maxFallSpeed)\n            let newY = mushroom.position.y + vy * dt\n            if newY - 7 <= worldY(row: 11) + tile {\n                vy = 0\n            }\n            mushroom.position.y = newY\n            mushroom.position.x += direction * 38 * dt\n            if collides(left: mushroom.position.x - 7, right: mushroom.position.x + 7, top: mushroom.position.y + 7, bottom: mushroom.position.y - 7) {\n                mushroomDirections[id] = -direction\n            }\n            if abs(mushroom.position.x - mario.position.x) < 18 && abs(mushroom.position.y - mario.position.y) < 24 {\n                mushroom.removeFromParent()\n                powerUps.remove(at: i)\n                mushroomVelocity.removeValue(forKey: id)\n                mushroomDirections.removeValue(forKey: id)\n                becomeBigMario()\n                i += 0\n                continue\n            }\n            mushroomVelocity[id] = vy\n            i += 1\n        }\n    }\n\n    private func spawnBonusCoin(at position: CGPoint) {
+    private func spawnMushroom(at position: CGPoint) {
+        let power = SKShapeNode(circleOfRadius: 7)
+        power.fillColor = isBigMario ? .yellow : .red
+        power.strokeColor = .white
+        power.lineWidth = 1
+        power.position = CGPoint(x: position.x, y: position.y - 4)
+        power.zPosition = 11
+        power.name = "powerup"
+        worldNode.addChild(power)
+        powerUps.append(power)
+        let id = ObjectIdentifier(power)
+        mushroomVelocity[id] = 0
+        mushroomDirections[id] = 1
+        powerUpKinds[id] = isBigMario ? "flower" : "mushroom"
+
+        let pop = SKAction.moveBy(x: 0, y: 16, duration: 0.18)
+        power.run(pop)
+    }
+
+    private func updatePowerUps(_ dt: CGFloat) {
+        var i = 0
+        while i < powerUps.count {
+            let power = powerUps[i]
+            if power.parent == nil {
+                powerUps.remove(at: i)
+                continue
+            }
+
+            let id = ObjectIdentifier(power)
+            var vy = mushroomVelocity[id] ?? 0
+            let direction = mushroomDirections[id] ?? 1
+            vy = max(vy + gravity * dt, maxFallSpeed)
+            power.position.y += vy * dt
+            power.position.x += direction * 38 * dt
+
+            if collides(left: power.position.x - 7, right: power.position.x + 7,
+                        top: power.position.y + 7, bottom: power.position.y - 7) {
+                mushroomDirections[id] = -direction
+            }
+
+            if abs(power.position.x - mario.position.x) < 18 &&
+               abs(power.position.y - mario.position.y) < 24 {
+                let kind = powerUpKinds[id] ?? "mushroom"
+                power.removeFromParent()
+                powerUps.remove(at: i)
+                mushroomVelocity.removeValue(forKey: id)
+                mushroomDirections.removeValue(forKey: id)
+                powerUpKinds.removeValue(forKey: id)
+
+                if kind == "flower" {
+                    becomeFireMario()
+                } else {
+                    becomeBigMario()
+                }
+                continue
+            }
+
+            mushroomVelocity[id] = vy
+            i += 1
+        }
+    }
+
+    private func spawnFireball() {
+        let ball = SKShapeNode(circleOfRadius: 4)
+        ball.fillColor = .orange
+        ball.strokeColor = .white
+        ball.lineWidth = 1
+        ball.position = CGPoint(x: mario.position.x + (mario.xScale < 0 ? -14 : 14),
+                                y: mario.position.y)
+        ball.zPosition = 15
+        worldNode.addChild(ball)
+        fireballs.append(ball)
+
+        let direction: CGFloat = mario.xScale < 0 ? -1 : 1
+        fireballVelocity[ObjectIdentifier(ball)] = CGVector(dx: direction * 180, dy: 60)
+        sound.play(.fireball)
+    }
+
+    private func updateFireballs(_ dt: CGFloat) {
+        var i = 0
+        while i < fireballs.count {
+            let ball = fireballs[i]
+            let id = ObjectIdentifier(ball)
+            guard var v = fireballVelocity[id] else {
+                ball.removeFromParent()
+                fireballs.remove(at: i)
+                continue
+            }
+
+            v.dy += gravity * 0.55 * dt
+            ball.position.x += v.dx * dt
+            ball.position.y += v.dy * dt
+
+            if collides(left: ball.position.x - 4, right: ball.position.x + 4,
+                        top: ball.position.y + 4, bottom: ball.position.y - 4) {
+                if v.dy < 0 {
+                    v.dy = 145
+                    ball.position.y += 3
+                } else {
+                    removeFireball(ball, at: i)
+                    continue
+                }
+            }
+
+            var hitEnemy = false
+            for e in enemies {
+                if abs(e.position.x - ball.position.x) < 14 &&
+                   abs(e.position.y - ball.position.y) < 16 {
+                    e.removeFromParent()
+                    if let index = enemies.firstIndex(of: e) {
+                        enemies.remove(at: index)
+                        enemyDirections.remove(at: index)
+                        enemyAnimators.remove(at: index)
+                    }
+                    sound.play(.stomp)
+                    hitEnemy = true
+                    break
+                }
+            }
+
+            if hitEnemy {
+                removeFireball(ball, at: i)
+                continue
+            }
+
+            if ball.position.x < 0 || ball.position.x > CGFloat(level.width) * tile ||
+               ball.position.y < -20 {
+                removeFireball(ball, at: i)
+                continue
+            }
+
+            fireballVelocity[id] = v
+            i += 1
+        }
+    }
+
+    private func removeFireball(_ ball: SKShapeNode, at index: Int) {
+        let id = ObjectIdentifier(ball)
+        ball.removeFromParent()
+        fireballVelocity.removeValue(forKey: id)
+        fireballs.remove(at: index)
+    }
+
+    private func spawnBonusCoin(at position: CGPoint) {
         let coin = SKShapeNode(circleOfRadius: 5)
         coin.fillColor = .yellow
         coin.strokeColor = .white
@@ -495,7 +671,41 @@ final class GameScene: SKScene {
         return false
     }
 
-    private func becomeBigMario() {\n        guard !isBigMario else { return }\n        isBigMario = true\n        mario.size = CGSize(width: 32, height: 32)\n        marioAnimator = MarioAnimator(node: mario)\n        sound.play(.powerUp)\n    }\n\n    private func becomeSmallMario() {\n        guard isBigMario else { return }\n        isBigMario = false\n        mario.size = CGSize(width: 16, height: 16)\n        marioAnimator = nil\n    }\n\n    private func resetMario() {
+    private func becomeBigMario() {
+        isBigMario = true
+        isFireMario = false
+        mario.size = CGSize(width: 32, height: 32)
+        marioAnimator = MarioAnimator(node: mario)
+        sound.play(.powerUp)
+    }
+
+    private func becomeFireMario() {
+        isBigMario = true
+        isFireMario = true
+        mario.size = CGSize(width: 32, height: 32)
+        marioAnimator = MarioAnimator(node: mario)
+        if let texture = SpriteSheet.texture(named: "firemariosheet",
+                                              cellSize: CGSize(width: 32, height: 32),
+                                              column: 0, row: 0) {
+            mario.texture = texture
+        }
+        sound.play(.powerUp)
+    }
+
+    private func becomeSmallMario() {
+        guard isBigMario else { return }
+        isBigMario = false
+        isFireMario = false
+        mario.size = CGSize(width: 16, height: 16)
+        marioAnimator = nil
+        if let texture = SpriteSheet.texture(named: "smallmariosheet",
+                                              cellSize: CGSize(width: 16, height: 16),
+                                              column: 0, row: 0) {
+            mario.texture = texture
+        }
+    }
+
+    private func resetMario() {
         mario.position = CGPoint(x: 48, y: worldY(row: 10) + 16)
         velocity = .zero
         onGround = false
