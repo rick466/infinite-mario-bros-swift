@@ -29,6 +29,7 @@ final class GameScene: SKScene {
     private var onGround = false
     private var jumpTime: CGFloat = 0
     private var lastTime: TimeInterval = 0
+    private var tickAccumulator: CGFloat = 0
 
     private var level = GameLevel(stage: 0)
     private let worldNode = SKNode()
@@ -68,8 +69,6 @@ final class GameScene: SKScene {
 
     private let sound = SoundManager()
 
-    private let runSpeed: CGFloat = 105
-    private let jumpSpeed: CGFloat = 315
     private let gravity: CGFloat = -1050
     private let maxFallSpeed: CGFloat = -520
 
@@ -103,6 +102,7 @@ final class GameScene: SKScene {
         flagNode = SKShapeNode()
         velocity = .zero
         lastTime = 0
+        tickAccumulator = 0
         leftHeld = false
         rightHeld = false
         jumpHeld = false
@@ -479,11 +479,22 @@ final class GameScene: SKScene {
         }
     }
 
+    /// The original Java game advances its simulation at 24 ticks per second.
+    /// SpriteKit may render at 60/120 Hz, so gameplay is stepped at a fixed 24 Hz.
     override func update(_ currentTime: TimeInterval) {
         guard screenState == .playing else { return }
-        let dt = min(CGFloat(1.0 / 30.0), CGFloat(currentTime - (lastTime == 0 ? currentTime : lastTime)))
+        let elapsed = lastTime == 0 ? 0 : max(0, currentTime - lastTime)
         lastTime = currentTime
+        tickAccumulator += min(CGFloat(elapsed), 0.12)
 
+        let fixedStep: CGFloat = 1.0 / 24.0
+        while tickAccumulator >= fixedStep && screenState == .playing {
+            simulateGameTick(dt: fixedStep)
+            tickAccumulator -= fixedStep
+        }
+    }
+
+    private func simulateGameTick(dt: CGFloat) {
         timeLeft -= dt
         if timeLeft <= 0 {
             timeLeft = 0
@@ -493,32 +504,47 @@ final class GameScene: SKScene {
         }
 
         damageInvulnerability = max(0, damageInvulnerability - dt)
+
+        // Mario.java: KEY_SPEED changes horizontal acceleration from 0.6 to 1.2.
+        // The FIRE touch control doubles as the original speed/action button.
         let direction = (rightHeld ? 1 : 0) - (leftHeld ? 1 : 0)
-        velocity.dx = CGFloat(direction) * runSpeed
+        let sideAcceleration: CGFloat = firePressed ? 1.2 : 0.6
+        velocity.dx += CGFloat(direction) * sideAcceleration
 
         if jumpHeld && !wasJumpHeld && onGround {
-            velocity.dy = jumpSpeed
+            // Java: yJumpSpeed = -1.9, jumpTime = 7, ya = jumpTime * yJumpSpeed.
+            jumpTime = 7
+            velocity.dy = 7 * 1.9
             onGround = false
-            jumpTime = 0
             sound.play(.jump)
+        } else if jumpHeld && jumpTime > 0 {
+            velocity.dy = jumpTime * 1.9
+            jumpTime -= 1
+        } else if !jumpHeld {
+            jumpTime = 0
         }
-        if jumpHeld && !onGround && velocity.dy > 0 {
-            jumpTime += dt
-            if jumpTime < 0.16 { velocity.dy += 260 * dt }
-        }
-        if !jumpHeld && velocity.dy > 120 { velocity.dy *= 0.72 }
         wasJumpHeld = jumpHeld
 
-        if firePressed && !wasFirePressed && isFireMario { spawnFireball() }
+        if firePressed && !wasFirePressed && isFireMario {
+            spawnFireball()
+        }
         wasFirePressed = firePressed
 
         if downHeld && onGround {
             tryEnterPipe()
         }
 
-        velocity.dy = max(velocity.dy + gravity * dt, maxFallSpeed)
-        moveX(velocity.dx * dt)
-        moveY(velocity.dy * dt)
+        // Java's move() applies movement first, then 0.85 vertical damping,
+        // gravity +3 in screen-down coordinates, and 0.89 horizontal inertia.
+        if abs(velocity.dx) < 0.5 && direction == 0 {
+            velocity.dx = 0
+        }
+        moveX(velocity.dx)
+        moveY(velocity.dy)
+
+        velocity.dy *= 0.85
+        if !onGround { velocity.dy -= 3 }
+        velocity.dx *= 0.89
 
         collectCoins()
         updatePowerUps(dt)
@@ -614,7 +640,7 @@ final class GameScene: SKScene {
                         enemy.color = .white
                         enemy.size = CGSize(width: 22, height: 14)
                         score += 100
-                        velocity.dy = jumpSpeed * 0.55
+                        velocity.dy = 8.0
                         sound.play(.stomp)
                         i += 1
                         continue
@@ -633,7 +659,7 @@ final class GameScene: SKScene {
                 if isBigMario {
                     becomeSmallMario()
                     damageInvulnerability = 1.2
-                    velocity.dy = 180
+                    velocity.dy = 6.0
                     return
                 } else {
                     die()
