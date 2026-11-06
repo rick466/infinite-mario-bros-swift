@@ -10,6 +10,10 @@ final class GameScene: SKScene {
     private var rightHeld = false
     private var jumpHeld = false
 
+    private var velocityY: CGFloat = 0
+    private let gravity: CGFloat = -900
+    private let groundY: CGFloat = 48
+
     override func didMove(to view: SKView) {
         scaleMode = .aspectFit
         backgroundColor = .black
@@ -28,13 +32,26 @@ final class GameScene: SKScene {
         sky.zPosition = -10
         addChild(sky)
 
-        let ground = SKSpriteNode(color: .brown, size: CGSize(width: size.width, height: 32))
+        let ground = SKSpriteNode(
+            color: SKColor(red: 0.45, green: 0.28, blue: 0.12, alpha: 1),
+            size: CGSize(width: size.width, height: 32)
+        )
         ground.position = CGPoint(x: size.width / 2, y: 16)
         addChild(ground)
 
-        mario = SKSpriteNode(imageNamed: "mariosheet")
+        if let texture = SpriteSheet.texture(
+            named: "mariosheet",
+            cellSize: CGSize(width: 32, height: 32),
+            column: 0,
+            row: 0
+        ) {
+            mario = SKSpriteNode(texture: texture)
+        } else {
+            mario = SKSpriteNode(color: .red, size: CGSize(width: 24, height: 32))
+        }
+
         mario.size = CGSize(width: 32, height: 32)
-        mario.position = CGPoint(x: 80, y: 64)
+        mario.position = CGPoint(x: 80, y: groundY)
         mario.zPosition = 10
         addChild(mario)
 
@@ -105,18 +122,22 @@ final class GameScene: SKScene {
     }
 
     override func update(_ currentTime: TimeInterval) {
-        let speed: CGFloat = 2
+        let dt: CGFloat = 1.0 / 60.0
+        let speed: CGFloat = 110
 
-        if leftHeld { mario.position.x -= speed }
-        if rightHeld { mario.position.x += speed }
+        if leftHeld { mario.position.x -= speed * dt }
+        if rightHeld { mario.position.x += speed * dt }
 
-        if jumpHeld && mario.position.y <= 64 {
-            mario.physicsBody = mario.physicsBody ?? SKPhysicsBody(rectangleOf: mario.size)
-            mario.physicsBody?.velocity.dy = 260
+        if jumpHeld && mario.position.y <= groundY + 0.1 {
+            velocityY = 330
         }
 
-        if mario.position.y > 64 {
-            mario.position.y -= 5
+        velocityY += gravity * dt
+        mario.position.y += velocityY * dt
+
+        if mario.position.y < groundY {
+            mario.position.y = groundY
+            velocityY = 0
         }
 
         mario.position.x = min(max(mario.position.x, 16), size.width - 16)
