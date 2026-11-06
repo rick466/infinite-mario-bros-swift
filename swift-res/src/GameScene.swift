@@ -229,13 +229,13 @@ final class GameScene: SKScene {
         collectedCoins = 0
         score = 0
         timeLeft = 300
-        isBigMario = true
+        isBigMario = false
         isFireMario = false
         screenState = .playing
         clearScene()
         screenState = .playing
         buildWorld()
-        marioAnimator = MarioAnimator(node: mario)
+        marioAnimator = MarioAnimator(node: mario, small: true)
         setupCamera()
         spawnEnemies()
         spawnCoins()
@@ -288,13 +288,13 @@ final class GameScene: SKScene {
             questionNodes[key(p.x, p.y)] = node
         }
 
-        if let texture = SpriteSheet.texture(named: "mariosheet", cellSize: CGSize(width: 32, height: 32), column: 0, row: 0) {
+        if let texture = SpriteSheet.texture(named: "smallmariosheet", cellSize: CGSize(width: 16, height: 16), column: 0, row: 0) {
             mario = SKSpriteNode(texture: texture)
         } else {
-            mario = SKSpriteNode(color: .red, size: CGSize(width: 24, height: 32))
+            mario = SKSpriteNode(color: .red, size: CGSize(width: 16, height: 16))
         }
-        mario.size = CGSize(width: 32, height: 32)
-        mario.position = CGPoint(x: 48, y: worldY(row: 10) + 16)
+        mario.size = CGSize(width: 16, height: 16)
+        mario.position = CGPoint(x: 48, y: worldY(row: 10) + 8)
         mario.zPosition = 10
         worldNode.addChild(mario)
     }
@@ -757,45 +757,99 @@ final class GameScene: SKScene {
     }
 
     private func moveX(_ amount: CGFloat) {
-        let halfW: CGFloat = isBigMario ? 11 : 7
-        let newX = mario.position.x + amount
-        if amount > 0 && collides(left: newX + halfW, right: newX + halfW, top: mario.position.y + 14, bottom: mario.position.y - 14, verticalMotion: 0) {
-            mario.position.x = floor((newX + halfW) / tile) * tile - halfW - 0.1
-            velocity.dx = 0
-        } else if amount < 0 && collides(left: newX - halfW, right: newX - halfW, top: mario.position.y + 14, bottom: mario.position.y - 14, verticalMotion: 0) {
-            mario.position.x = floor((newX - halfW) / tile + 1) * tile + halfW + 0.1
-            velocity.dx = 0
-        } else {
-            mario.position.x = max(8, newX)
+        if amount > 8 {
+            moveX(8)
+            moveX(amount - 8)
+            return
         }
+        if amount < -8 {
+            moveX(-8)
+            moveX(amount + 8)
+            return
+        }
+
+        let halfW: CGFloat = isBigMario ? 4 : 4
+        let halfH: CGFloat = isBigMario ? 24 : 12
+        let nextX = mario.position.x + amount
+        let sampleYs = [
+            mario.position.y + halfH - 1,
+            mario.position.y,
+            mario.position.y - halfH + 1
+        ]
+
+        if amount > 0 {
+            let edgeX = nextX + halfW
+            if sampleYs.contains(where: { tileBlocks(worldX: edgeX, worldY: $0, motionY: 0) }) {
+                let column = Int(floor(edgeX / tile))
+                mario.position.x = CGFloat(column) * tile - halfW - 0.1
+                velocity.dx = 0
+                return
+            }
+        } else if amount < 0 {
+            let edgeX = nextX - halfW
+            if sampleYs.contains(where: { tileBlocks(worldX: edgeX, worldY: $0, motionY: 0) }) {
+                let column = Int(floor(edgeX / tile))
+                mario.position.x = CGFloat(column + 1) * tile + halfW + 0.1
+                velocity.dx = 0
+                return
+            }
+        }
+        mario.position.x = min(CGFloat(level.width) * tile, max(4, nextX))
     }
 
     private func moveY(_ amount: CGFloat) {
-        let halfW: CGFloat = isBigMario ? 11 : 7
-        let halfH: CGFloat = isBigMario ? 14 : 8
-        let newY = mario.position.y + amount
+        if amount > 8 {
+            moveY(8)
+            moveY(amount - 8)
+            return
+        }
+        if amount < -8 {
+            moveY(-8)
+            moveY(amount + 8)
+            return
+        }
 
-        var resolvedY = newY
-        if amount <= 0 {
-            let bottom = newY - halfH
-            if collides(left: mario.position.x - halfW, right: mario.position.x + halfW, top: newY, bottom: bottom, verticalMotion: amount) {
+        let halfW: CGFloat = 4
+        let halfH: CGFloat = isBigMario ? 24 : 12
+        let nextY = mario.position.y + amount
+        let sampleXs = [
+            mario.position.x - halfW,
+            mario.position.x,
+            mario.position.x + halfW
+        ]
+
+        if amount < 0 {
+            let bottom = nextY - halfH
+            if sampleXs.contains(where: { tileBlocks(worldX: $0, worldY: bottom, motionY: amount) }) ||
+                sampleXs.contains(where: { tileBlocks(worldX: $0, worldY: bottom - 1, motionY: amount) }) {
                 let row = Int(floor((virtualHeight - bottom) / tile))
-                resolvedY = worldY(row: row) + tile + halfH
+                mario.position.y = worldY(row: row) + tile + halfH
                 velocity.dy = 0
                 onGround = true
             } else {
+                mario.position.y = nextY
                 onGround = false
             }
-        } else {
-            let top = newY + halfH
-            if collides(left: mario.position.x - halfW, right: mario.position.x + halfW, top: top, bottom: newY, verticalMotion: amount) {
+        } else if amount > 0 {
+            let top = nextY + halfH
+            if sampleXs.contains(where: { tileBlocks(worldX: $0, worldY: top, motionY: amount) }) {
                 let row = Int(floor((virtualHeight - top) / tile))
-                resolvedY = worldY(row: row) - halfH - 0.1
+                mario.position.y = worldY(row: row) - halfH - 0.1
                 velocity.dy = 0
+            } else {
+                mario.position.y = nextY
             }
             checkQuestionBlocks()
+        } else {
+            mario.position.y = nextY
+            onGround = false
         }
-        mario.position.y = resolvedY
+    }
+
+    private func tileBlocks(worldX: CGFloat, worldY: CGFloat, motionY: CGFloat) -> Bool {
+        let column = Int(floor(worldX / tile))
+        let row = Int(floor((virtualHeight - worldY) / tile))
+        return level.isBlocking(column, row, verticalMotion: motionY)
     }
 
     private func checkQuestionBlocks() {
