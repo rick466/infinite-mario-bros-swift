@@ -294,7 +294,9 @@ final class GameScene: SKScene {
             mario = SKSpriteNode(color: .red, size: CGSize(width: 16, height: 16))
         }
         mario.size = CGSize(width: 16, height: 16)
-        mario.position = CGPoint(x: 48, y: worldY(row: 10) + 8)
+        let spawnColumn = 3
+        let spawnFloor = (0..<level.height).first(where: { level.isSolid(spawnColumn, $0) }) ?? (level.height - 1)
+        mario.position = CGPoint(x: 48, y: worldY(row: spawnFloor) + tile + 8)
         mario.zPosition = 10
         worldNode.addChild(mario)
     }
@@ -768,13 +770,15 @@ final class GameScene: SKScene {
             return
         }
 
-        let halfW: CGFloat = isBigMario ? 4 : 4
-        let halfH: CGFloat = isBigMario ? 24 : 12
+        let halfW: CGFloat = 4
+        let hitHalfH: CGFloat = isBigMario ? 12 : 6
+        let hitOffset: CGFloat = isBigMario ? -4 : -2
+        let hitCenterY = mario.position.y + hitOffset
         let nextX = mario.position.x + amount
         let sampleYs = [
-            mario.position.y + halfH - 1,
-            mario.position.y,
-            mario.position.y - halfH + 1
+            hitCenterY + hitHalfH - 1,
+            hitCenterY,
+            hitCenterY - hitHalfH + 1
         ]
 
         if amount > 0 {
@@ -810,8 +814,10 @@ final class GameScene: SKScene {
         }
 
         let halfW: CGFloat = 4
-        let halfH: CGFloat = isBigMario ? 24 : 12
+        let hitHalfH: CGFloat = isBigMario ? 12 : 6
+        let hitOffset: CGFloat = isBigMario ? -4 : -2
         let nextY = mario.position.y + amount
+        let hitCenterY = nextY + hitOffset
         let sampleXs = [
             mario.position.x - halfW,
             mario.position.x,
@@ -819,11 +825,11 @@ final class GameScene: SKScene {
         ]
 
         if amount < 0 {
-            let bottom = nextY - halfH
+            let bottom = hitCenterY - hitHalfH
             if sampleXs.contains(where: { tileBlocks(worldX: $0, worldY: bottom, motionY: amount) }) ||
                 sampleXs.contains(where: { tileBlocks(worldX: $0, worldY: bottom - 1, motionY: amount) }) {
                 let row = Int(floor((virtualHeight - bottom) / tile))
-                mario.position.y = worldY(row: row) + tile + halfH
+                mario.position.y = worldY(row: row) + tile + hitHalfH - hitOffset
                 velocity.dy = 0
                 onGround = true
             } else {
@@ -831,10 +837,10 @@ final class GameScene: SKScene {
                 onGround = false
             }
         } else if amount > 0 {
-            let top = nextY + halfH
+            let top = hitCenterY + hitHalfH
             if sampleXs.contains(where: { tileBlocks(worldX: $0, worldY: top, motionY: amount) }) {
                 let row = Int(floor((virtualHeight - top) / tile))
-                mario.position.y = worldY(row: row) - halfH - 0.1
+                mario.position.y = worldY(row: row) - hitHalfH - hitOffset - 0.1
                 velocity.dy = 0
             } else {
                 mario.position.y = nextY
@@ -854,9 +860,12 @@ final class GameScene: SKScene {
 
     private func checkQuestionBlocks() {
         guard velocity.dy > 0 else { return }
-        let row = Int(floor((virtualHeight - (mario.position.y + 14)) / tile))
-        let left = Int(floor((mario.position.x - 8) / tile))
-        let right = Int(floor((mario.position.x + 8) / tile))
+        let hitOffset: CGFloat = isBigMario ? -4 : -2
+        let hitHalfH: CGFloat = isBigMario ? 12 : 6
+        let top = mario.position.y + hitOffset + hitHalfH
+        let row = Int(floor((virtualHeight - top) / tile))
+        let left = Int(floor((mario.position.x - 4) / tile))
+        let right = Int(floor((mario.position.x + 4) / tile))
         for x in left...right {
             let k = key(x, row)
             if let block = questionNodes[k], !usedBlocks.contains(k) {
@@ -1071,7 +1080,7 @@ final class GameScene: SKScene {
         isBigMario = false
         isFireMario = false
         mario.size = CGSize(width: 16, height: 16)
-        marioAnimator = nil
+        marioAnimator = MarioAnimator(node: mario, small: true)
         if let texture = SpriteSheet.texture(named: "smallmariosheet", cellSize: CGSize(width: 16, height: 16), column: 0, row: 0) {
             mario.texture = texture
         }
