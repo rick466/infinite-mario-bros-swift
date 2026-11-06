@@ -1063,6 +1063,17 @@ final class GameScene: SKScene {
     /// blocks release a power-up, ordinary bumpable blocks release a coin,
     /// and breakable bricks disappear only when Mario is large.
     private func hitBlock(x: Int, y: Int) {
+        let flags = level.behavior(at: x, y)
+        guard flags & 0b0011_0000 != 0 else { return }
+
+        // Java LevelScene.bump() calls bumpInto(x, y - 1) before changing the block.
+        if level.collectPickupable(x: x, y: y - 1) {
+            refreshTile(x: x, y: y - 1)
+            addCoin()
+            score += 100
+            spawnCoinPop(x: x, y: y - 1)
+            sound.play(.coin)
+        }
         guard let result = level.bumpBlock(x: x, y: y, canBreak: isBigMario) else { return }
         let k = key(x, y)
         switch result {
@@ -1070,7 +1081,7 @@ final class GameScene: SKScene {
             refreshTile(x: x, y: y)
             let position = tileCenter(x: x, row: y)
             spawnPowerUp(at: position, kind: isBigMario ? "flower" : "mushroom")
-            sound.play(.powerUp)
+            sound.play(.sprout)
         case .coin:
             refreshTile(x: x, y: y)
             addCoin()
