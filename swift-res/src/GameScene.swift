@@ -7,6 +7,7 @@ final class GameScene: SKScene {
     private let tile: CGFloat = 16
 
     private var mario = SKSpriteNode()
+    private var marioAnimator: MarioAnimator?
     private var level = GameLevel()
     private let worldNode = SKNode()
     private var cameraNode = SKCameraNode()
@@ -41,6 +42,7 @@ final class GameScene: SKScene {
 
         addChild(worldNode)
         buildWorld()
+        marioAnimator = MarioAnimator(node: mario)
         setupCamera()
         spawnEnemies()
         spawnCoins()
@@ -319,6 +321,7 @@ final class GameScene: SKScene {
         moveY(velocity.dy * dt)
         collectCoins()
         updateEnemies(dt)
+        marioAnimator?.update(dt: dt)
         updateCamera()
     }
 
