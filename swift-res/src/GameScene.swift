@@ -47,6 +47,7 @@ final class GameScene: SKScene {
     private var enemyAnimators: [EnemyAnimator?] = []
 
     private var coins: [SKShapeNode] = []
+    private var coinTilePositions: [ObjectIdentifier: SIMD2<Int>] = [:]
     private var powerUps: [SKSpriteNode] = []
     private var powerUpKinds: [ObjectIdentifier: String] = [:]
     private var powerUpVelocity: [ObjectIdentifier: CGVector] = [:]
@@ -100,6 +101,7 @@ final class GameScene: SKScene {
         enemyTimers.removeAll()
         enemyAnimators.removeAll()
         coins.removeAll()
+        coinTilePositions.removeAll()
         powerUps.removeAll()
         fireballs.removeAll()
         questionNodes.removeAll()
@@ -921,6 +923,7 @@ final class GameScene: SKScene {
             coin.zPosition = 6
             worldNode.addChild(coin)
             coins.append(coin)
+            coinTilePositions[ObjectIdentifier(coin)] = p
             coin.run(.repeatForever(.sequence([
                 .scaleX(to: 0.25, duration: 0.28),
                 .scaleX(to: 1, duration: 0.28)
@@ -931,7 +934,13 @@ final class GameScene: SKScene {
     private func collectCoins() {
         for coin in coins where coin.parent != nil {
             if abs(coin.position.x - mario.position.x) < 14 && abs(coin.position.y - mario.position.y) < 20 {
+                let id = ObjectIdentifier(coin)
                 coin.removeFromParent()
+                if let tilePosition = coinTilePositions[id] {
+                    _ = level.collectPickupable(x: tilePosition.x, y: tilePosition.y)
+                    refreshTile(x: tilePosition.x, y: tilePosition.y)
+                }
+                coinTilePositions.removeValue(forKey: id)
                 addCoin()
                 score += 100
                 sound.play(.coin)
