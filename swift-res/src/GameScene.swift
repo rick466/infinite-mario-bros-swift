@@ -275,8 +275,7 @@ final class GameScene: SKScene {
         let levelNode = SKNode()
         for x in 0..<level.width {
             for y in 0..<level.height where level.tileIDs[x][y] != 0 {
-                if level.questionBlockPositions.contains(where: { $0.x == x && $0.y == y }) ||
-                    level.isPickupable(x, y) { continue }
+                if level.isPickupable(x, y) { continue }
                 let tileID = Int(level.tileIDs[x][y])
                 let column = tileID % 16
                 let row = tileID / 16
@@ -291,12 +290,9 @@ final class GameScene: SKScene {
         addGoal()
 
         for p in level.questionBlockPositions {
-            let node = tileNodes[key(p.x, p.y)] ?? makeQuestionBlock(used: false)
-            if node.parent == nil {
-                node.position = tileCenter(x: p.x, row: p.y)
-                worldNode.addChild(node)
+            if let node = tileNodes[key(p.x, p.y)] {
+                questionNodes[key(p.x, p.y)] = node
             }
-            questionNodes[key(p.x, p.y)] = node
         }
 
         if let texture = SpriteSheet.texture(named: "smallmariosheet", cellSize: CGSize(width: 16, height: 16), column: 0, row: 0) {
