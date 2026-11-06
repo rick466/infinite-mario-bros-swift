@@ -8,15 +8,16 @@ struct GameLevel {
     let coinPositions: [SIMD2<Int>]
     let enemyPositions: [SIMD2<Int>]
 
-    init(width: Int = 320, height: Int = 15, seed: UInt64 = 0x4D4152494F) {
+    init(width: Int = 320, height: Int = 15, stage: Int = 0) {
+        let types: [LevelGenerator.LevelType] = [.overground, .underground, .castle]
+        let difficulty = min(3, stage + 1)
         let generated = LevelGenerator.make(
             width: width,
             height: height,
-            seed: seed,
-            difficulty: 1,
-            type: .overground
+            seed: 0x4D4152494F + UInt64(stage) * 0x9E3779B97F4A7C15,
+            difficulty: difficulty,
+            type: types[min(stage, types.count - 1)]
         )
-
         self.width = generated.width
         self.height = generated.height
         self.tiles = generated.tiles
