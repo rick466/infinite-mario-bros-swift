@@ -9,6 +9,7 @@ final class GameScene: SKScene {
     private var mario = SKSpriteNode()
     private var marioAnimator: MarioAnimator?
     private var isBigMario = true
+    private var damageInvulnerability: CGFloat = 0
     private var level = GameLevel()
     private let worldNode = SKNode()
     private var cameraNode = SKCameraNode()
@@ -221,7 +222,7 @@ final class GameScene: SKScene {
                 continue
             }
 
-            if abs(enemy.position.x - mario.position.x) < 20 &&
+            if damageInvulnerability <= 0 && abs(enemy.position.x - mario.position.x) < 20 &&
                abs(enemy.position.y - mario.position.y) < 24 {
                 if velocity.dy < -20 && mario.position.y > enemy.position.y {
                     enemy.removeFromParent()
