@@ -19,7 +19,7 @@ struct GameLevel {
         let generated = LevelGenerator.make(
             width: width,
             height: height,
-            seed: 0x4D4152494F + UInt64(stage) * 0x9E3779B97F4A7C15,
+            seed: 0x4D4152494F &+ (UInt64(stage) &* 0x9E3779B97F4A7C15),
             difficulty: difficulty,
             type: types[min(stage, types.count - 1)]
         )
