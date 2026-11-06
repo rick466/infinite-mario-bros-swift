@@ -817,6 +817,10 @@ final class GameScene: SKScene {
                     other += 1
                     continue
                 }
+                if other < index {
+                    other += 1
+                    continue
+                }
                 let target = enemies[other]
                 if abs(target.position.x - shell.position.x) < 15 &&
                     abs(target.position.y - shell.position.y) < 16 {
@@ -1067,22 +1071,36 @@ final class GameScene: SKScene {
             }
 
             var hit = false
-            for enemy in enemies {
-                if abs(enemy.position.x - b.position.x) < 14 && abs(enemy.position.y - b.position.y) < 16 {
-                    enemy.removeFromParent()
-                    if let index = enemies.firstIndex(of: enemy) {
-                        enemies.remove(at: index)
-                        enemyKinds.remove(at: index)
-                        enemyDirections.remove(at: index)
-                        enemyVerticalVelocities.remove(at: index)
-                        enemyGrounded.remove(at: index)
-                        enemyAnimators.remove(at: index)
-                    }
-                    score += 200
-                    sound.play(.stomp)
+            for enemyIndex in enemies.indices {
+                let enemy = enemies[enemyIndex]
+                guard abs(enemy.position.x - b.position.x) < 14 &&
+                    abs(enemy.position.y - b.position.y) < 16 else { continue }
+
+                if enemyKinds[enemyIndex] == 3 {
+                    // Java's spiky enemy survives fireballs; the fireball is consumed.
                     hit = true
                     break
                 }
+                if enemyKinds[enemyIndex] == 5 {
+                    // A stationary shell is kicked by a fireball; a moving shell absorbs it.
+                    if enemyDirections[enemyIndex] == 0 {
+                        enemyDirections[enemyIndex] = (fireballVelocity[id]?.dx ?? 1) >= 0 ? 1 : -1
+                    }
+                    hit = true
+                    break
+                }
+
+                enemy.removeFromParent()
+                enemies.remove(at: enemyIndex)
+                enemyKinds.remove(at: enemyIndex)
+                enemyDirections.remove(at: enemyIndex)
+                enemyVerticalVelocities.remove(at: enemyIndex)
+                enemyGrounded.remove(at: enemyIndex)
+                enemyAnimators.remove(at: enemyIndex)
+                score += 200
+                sound.play(.stomp)
+                hit = true
+                break
             }
             if hit {
                 removeFireball(b, index: i)
