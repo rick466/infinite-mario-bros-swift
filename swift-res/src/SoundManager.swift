@@ -14,7 +14,7 @@ final class SoundManager {
         load(.jump, "jump.wav")
         load(.coin, "coin.wav")
         load(.stomp, "stomp.wav")
-        load(.block, "breakblock.wav")
+        load(.block, "breakblock.wav")\n        load(.powerUp, "powerup.wav")
     }
 
     private func load(_ effect: Effect, _ filename: String) {
