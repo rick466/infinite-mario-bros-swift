@@ -651,6 +651,29 @@ final class GameScene: SKScene {
                 i += 1
                 continue
             }
+            if kind == 6 {
+                // Enemy.bumpCheck(): block impact launches the enemy upward,
+                // disables its wings, and starts the Java 100-tick death state.
+                let javaYA = enemyVerticalVelocities[i]
+                enemy.position.x += enemyDirections[i] * 2
+                enemy.position.y -= javaYA
+                enemyVerticalVelocities[i] = javaYA * 0.85 + 2
+                enemyTimers[i] += 1
+                if enemyTimers[i] >= 100 {
+                    enemy.removeFromParent()
+                    enemies.remove(at: i)
+                    enemyKinds.remove(at: i)
+                    enemyDirections.remove(at: i)
+                    enemyVerticalVelocities.remove(at: i)
+                    enemyGrounded.remove(at: i)
+                    enemyBaseY.remove(at: i)
+                    enemyTimers.remove(at: i)
+                    enemyAnimators.remove(at: i)
+                    continue
+                }
+                i += 1
+                continue
+            }
             if kind == 4 {
                 updateFlowerEnemy(at: i)
                 if damageInvulnerability <= 0 &&
@@ -1067,11 +1090,37 @@ final class GameScene: SKScene {
     /// Mirrors LevelScene.bump(): bumpable blocks become tile 4; special
     /// blocks release a power-up, ordinary bumpable blocks release a coin,
     /// and breakable bricks disappear only when Mario is large.
+    /// LevelScene.bumpInto() notifies every enemy whose feet are aligned
+    /// with the tile immediately above the block.
+    private func bumpEnemies(fromBlockX x: Int, fromBlockY y: Int) {
+        let tileLeft = CGFloat(x) * tile
+        let tileRight = tileLeft + tile
+        for i in enemies.indices {
+            guard enemyKinds[i] != 5 && enemyKinds[i] != 6 else { continue }
+            let enemy = enemies[i]
+            let enemyLeft = enemy.position.x - enemy.size.width / 2
+            let enemyRight = enemy.position.x + enemy.size.width / 2
+            let javaBottom = virtualHeight - (enemy.position.y - enemy.size.height / 2)
+            let enemyRow = Int(floor((javaBottom - 1) / tile))
+            guard enemyRight > tileLeft && enemyLeft < tileRight && enemyRow == y else { continue }
+            enemyKinds[i] = 6
+            enemyDirections[i] = mario.xScale < 0 ? 1 : -1
+            enemyVerticalVelocities[i] = -5
+            enemyTimers[i] = 0
+            enemyGrounded[i] = false
+            enemy.removeAllChildren()
+            enemy.color = .white
+            enemy.zRotation = .pi
+            enemyAnimators[i] = nil
+        }
+    }
+
     private func hitBlock(x: Int, y: Int) {
         let flags = level.behavior(at: x, y)
         guard flags & 0b0011_0000 != 0 else { return }
 
         // Java LevelScene.bump() calls bumpInto(x, y - 1) before changing the block.
+        bumpEnemies(fromBlockX: x, fromBlockY: y - 1)
         if level.collectPickupable(x: x, y: y - 1) {
             refreshTile(x: x, y: y - 1)
             addCoin()
