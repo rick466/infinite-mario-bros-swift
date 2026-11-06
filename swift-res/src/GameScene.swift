@@ -51,6 +51,8 @@ final class GameScene: SKScene {
     private var powerUpKinds: [ObjectIdentifier: String] = [:]
     private var powerUpVelocity: [ObjectIdentifier: CGVector] = [:]
     private var powerUpDirections: [ObjectIdentifier: CGFloat] = [:]
+    private var powerUpTicks: [ObjectIdentifier: Int] = [:]
+    private var tileNodes: [String: SKSpriteNode] = [:]
 
     private var fireballs: [SKShapeNode] = []
     private var fireballVelocity: [ObjectIdentifier: CGVector] = [:]
@@ -105,6 +107,8 @@ final class GameScene: SKScene {
         powerUpKinds.removeAll()
         powerUpVelocity.removeAll()
         powerUpDirections.removeAll()
+        powerUpTicks.removeAll()
+        tileNodes.removeAll()
         fireballVelocity.removeAll()
         cameraNode = SKCameraNode()
         mario = SKSpriteNode()
@@ -273,15 +277,10 @@ final class GameScene: SKScene {
                 let tileID = Int(level.tileIDs[x][y])
                 let column = tileID % 16
                 let row = tileID / 16
-                let node: SKSpriteNode
-                if let texture = SpriteSheet.texture(named: "mapsheet", cellSize: CGSize(width: 16, height: 16), column: column, row: row) {
-                    node = SKSpriteNode(texture: texture)
-                } else {
-                    node = SKSpriteNode(color: .brown, size: CGSize(width: tile, height: tile))
-                }
-                node.size = CGSize(width: tile, height: tile)
+                let node = makeTileNode(tileID: tileID)
                 node.position = tileCenter(x: x, row: y)
                 levelNode.addChild(node)
+                tileNodes[key(x, y)] = node
             }
         }
         worldNode.addChild(levelNode)
@@ -289,9 +288,11 @@ final class GameScene: SKScene {
         addGoal()
 
         for p in level.questionBlockPositions {
-            let node = makeQuestionBlock(used: false)
-            node.position = tileCenter(x: p.x, row: p.y)
-            worldNode.addChild(node)
+            let node = tileNodes[key(p.x, p.y)] ?? makeQuestionBlock(used: false)
+            if node.parent == nil {
+                node.position = tileCenter(x: p.x, row: p.y)
+                worldNode.addChild(node)
+            }
             questionNodes[key(p.x, p.y)] = node
         }
 
@@ -932,8 +933,7 @@ final class GameScene: SKScene {
         for coin in coins where coin.parent != nil {
             if abs(coin.position.x - mario.position.x) < 14 && abs(coin.position.y - mario.position.y) < 20 {
                 coin.removeFromParent()
-                collectedCoins += 1
-                score += 100
+                addCoin()
                 sound.play(.coin)
             }
         }
@@ -1023,10 +1023,12 @@ final class GameScene: SKScene {
                 let row = Int(floor((virtualHeight - top) / tile))
                 mario.position.y = worldY(row: row) - hitHalfH - hitOffset - 0.1
                 velocity.dy = 0
+                for x in sampleXs.map({ Int(floor($0 / tile)) }) {
+                    hitBlock(x: x, y: row)
+                }
             } else {
                 mario.position.y = nextY
             }
-            checkQuestionBlocks()
         } else {
             mario.position.y = nextY
             onGround = false
@@ -1047,23 +1049,138 @@ final class GameScene: SKScene {
         let row = Int(floor((virtualHeight - top) / tile))
         let left = Int(floor((mario.position.x - 4) / tile))
         let right = Int(floor((mario.position.x + 4) / tile))
-        for x in left...right {
-            let k = key(x, row)
-            if let block = questionNodes[k], !usedBlocks.contains(k) {
-                usedBlocks.insert(k)
-                block.texture = nil
-                block.color = SKColor(white: 0.45, alpha: 1)
-                block.removeAllChildren()
-                spawnPowerUp(at: block.position)
-                score += 200
-                sound.play(.block)
+        for x in left...right { hitBlock(x: x, y: row) }
+    }
+
+    /// Mirrors LevelScene.bump(): bumpable blocks become tile 4; special
+    /// blocks release a power-up, ordinary bumpable blocks release a coin,
+    /// and breakable bricks disappear only when Mario is large.
+    private func hitBlock(x: Int, y: Int) {
+        guard let result = level.bumpBlock(x: x, y: y, canBreak: isBigMario) else { return }
+        let k = key(x, y)
+        switch result {
+        case .item:
+            refreshTile(x: x, y: y)
+            let position = tileCenter(x: x, row: y)
+            spawnPowerUp(at: position, kind: isBigMario ? "flower" : "mushroom")
+            sound.play(.powerUp)
+        case .coin:
+            refreshTile(x: x, y: y)
+            addCoin()
+            spawnCoinPop(x: x, y: y)
+            sound.play(.coin)
+        case .broken:
+            refreshTile(x: x, y: y)
+            spawnBrickFragments(at: tileCenter(x: x, row: y))
+            sound.play(.block)
+        case .bumped:
+            // Small Mario can bump a brick but cannot break it.
+            spawnBlockBump(at: tileCenter(x: x, row: y))
+            sound.play(.block)
+        }
+        usedBlocks.insert(k)
+        if let node = questionNodes[k], result == .item || result == .coin {
+            node.color = SKColor(white: 0.45, alpha: 1)
+            node.removeAllChildren()
+        }
+        score += result == .coin ? 200 : (result == .item ? 200 : 0)
+    }
+
+    private func makeTileNode(tileID: UInt8) -> SKSpriteNode {
+        let value = Int(tileID)
+        let node: SKSpriteNode
+        if let texture = SpriteSheet.texture(named: "mapsheet", cellSize: CGSize(width: 16, height: 16), column: value % 16, row: value / 16) {
+            node = SKSpriteNode(texture: texture)
+        } else {
+            node = SKSpriteNode(color: .brown, size: CGSize(width: tile, height: tile))
+        }
+        node.size = CGSize(width: tile, height: tile)
+        return node
+    }
+
+    private func refreshTile(x: Int, y: Int) {
+        let k = key(x, y)
+        tileNodes[k]?.removeFromParent()
+        guard level.tileIDs[x][y] != 0 else {
+            tileNodes.removeValue(forKey: k)
+            questionNodes.removeValue(forKey: k)
+            return
+        }
+        let node = makeTileNode(tileID: level.tileIDs[x][y])
+        node.position = tileCenter(x: x, row: y)
+        node.zPosition = 2
+        worldNode.addChild(node)
+        tileNodes[k] = node
+        questionNodes[k] = node
+    }
+
+    private func addCoin() {
+        collectedCoins += 1
+        score += 200
+        if collectedCoins >= 100 {
+            collectedCoins -= 100
+            lives = min(99, lives + 1)
+            sound.play(.oneUp)
+        }
+    }
+
+    private func spawnCoinPop(x: Int, y: Int) {
+        let coin = SKShapeNode(ellipseOf: CGSize(width: 8, height: 13))
+        coin.fillColor = .yellow
+        coin.strokeColor = .white
+        coin.position = tileCenter(x: x, row: y)
+        coin.zPosition = 30
+        worldNode.addChild(coin)
+        coin.run(.sequence([
+            .moveBy(x: 0, y: 25, duration: 0.22),
+            .fadeOut(withDuration: 0.12),
+            .removeFromParent()
+        ]))
+    }
+
+    private func spawnBlockBump(at position: CGPoint) {
+        let bump = SKShapeNode(rectOf: CGSize(width: 15, height: 3))
+        bump.fillColor = .white
+        bump.strokeColor = .clear
+        bump.position = position
+        bump.zPosition = 25
+        worldNode.addChild(bump)
+        bump.run(.sequence([
+            .moveBy(x: 0, y: 3, duration: 0.06),
+            .moveBy(x: 0, y: -3, duration: 0.08),
+            .removeFromParent()
+        ]))
+    }
+
+    private func spawnBrickFragments(at position: CGPoint) {
+        for x in [-1, 1] {
+            for y in [-1, 1] {
+                let piece = SKShapeNode(rectOf: CGSize(width: 7, height: 7))
+                piece.fillColor = SKColor(red: 0.62, green: 0.30, blue: 0.12, alpha: 1)
+                piece.strokeColor = .clear
+                piece.position = position
+                piece.zPosition = 35
+                worldNode.addChild(piece)
+                piece.run(.sequence([
+                    .group([
+                        .moveBy(x: CGFloat(x) * 13, y: CGFloat(y) * 17, duration: 0.35),
+                        .fadeOut(withDuration: 0.35)
+                    ]),
+                    .removeFromParent()
+                ]))
             }
         }
     }
 
-    private func spawnPowerUp(at position: CGPoint) {
-        let power = SKShapeNode(circleOfRadius: 7)
-        let kind = isBigMario ? "flower" : "mushroom"
+    private func spawnPowerUp(at position: CGPoint, kind: String) {
+        let power: SKSpriteNode
+        let column = kind == "flower" ? 1 : 0
+        if let texture = SpriteSheet.texture(named: "itemsheet", cellSize: CGSize(width: 16, height: 16), column: column, row: 0) {
+            power = SKSpriteNode(texture: texture)
+        } else {
+            power = SKSpriteNode(color: kind == "flower" ? .yellow : .red, size: CGSize(width: 16, height: 16))
+        }
+        power.size = CGSize(width: 16, height: 16)
         power.fillColor = kind == "flower" ? .yellow : .red
         power.strokeColor = .white
         power.position = CGPoint(x: position.x, y: position.y + 4)
@@ -1072,38 +1189,72 @@ final class GameScene: SKScene {
         powerUps.append(power)
         let id = ObjectIdentifier(power)
         powerUpKinds[id] = kind
-        powerUpVelocity[id] = CGVector(dx: 35, dy: 40)
+        powerUpVelocity[id] = CGVector(dx: 0, dy: -1)
         powerUpDirections[id] = 1
+        powerUpTicks[id] = 0
     }
 
+    /// Mushroom/FireFlower emergence and movement use the original 24 Hz tick units.
     private func updatePowerUps(_ dt: CGFloat) {
         var i = 0
         while i < powerUps.count {
             let p = powerUps[i]
             let id = ObjectIdentifier(p)
-            var v = powerUpVelocity[id] ?? CGVector(dx: 35, dy: 0)
-            let d = powerUpDirections[id] ?? 1
-            v.dy = max(v.dy + gravity * dt, maxFallSpeed)
-            p.position.x += d * 35 * dt
-            p.position.y += v.dy * dt
+            let kind = powerUpKinds[id] ?? "mushroom"
+            var ticks = powerUpTicks[id] ?? 0
+            var v = powerUpVelocity[id] ?? CGVector(dx: 0, dy: -1)
 
-            if collides(left: p.position.x - 7, right: p.position.x + 7, top: p.position.y + 7, bottom: p.position.y - 7) {
-                powerUpDirections[id] = -d
-                v.dy = 0
+            if ticks < 9 {
+                p.position.y += 1
+                ticks += 1
+                powerUpTicks[id] = ticks
+                i += 1
+                continue
             }
 
-            if abs(p.position.x - mario.position.x) < 18 && abs(p.position.y - mario.position.y) < 24 {
-                let kind = powerUpKinds[id] ?? "mushroom"
+            if kind == "mushroom" {
+                let direction = powerUpDirections[id] ?? 1
+                let nextX = p.position.x + direction * 1.75
+                if collides(left: nextX - 4, right: nextX + 4,
+                    top: p.position.y + 12, bottom: p.position.y - 12) {
+                    powerUpDirections[id] = -direction
+                } else {
+                    p.position.x = nextX
+                }
+
+                let nextY = p.position.y + v.dy
+                if collides(left: p.position.x - 4, right: p.position.x + 4,
+                    top: nextY + 12, bottom: nextY - 12, verticalMotion: v.dy) {
+                    if v.dy < 0 {
+                        let row = Int(floor((virtualHeight - (nextY - 12)) / tile))
+                        p.position.y = worldY(row: row) + tile + 12
+                    }
+                    v.dy = 0
+                } else {
+                    p.position.y = nextY
+                }
+                v.dy *= 0.85
+                if !collides(left: p.position.x - 4, right: p.position.x + 4,
+                    top: p.position.y + 13, bottom: p.position.y + 11) {
+                    v.dy -= 2
+                }
+                powerUpVelocity[id] = v
+            }
+
+            if abs(p.position.x - mario.position.x) < 16 &&
+                p.position.y - mario.position.y > -12 &&
+                p.position.y - mario.position.y < (isBigMario ? 24 : 12) {
                 p.removeFromParent()
                 powerUps.remove(at: i)
                 powerUpKinds.removeValue(forKey: id)
                 powerUpVelocity.removeValue(forKey: id)
                 powerUpDirections.removeValue(forKey: id)
-                kind == "flower" ? becomeFireMario() : becomeBigMario()
+                powerUpTicks.removeValue(forKey: id)
+                if kind == "flower" { becomeFireMario() } else { becomeBigMario() }
                 score += 1000
+                i += 1
                 continue
             }
-            powerUpVelocity[id] = v
             i += 1
         }
     }
