@@ -19,6 +19,7 @@ final class GameScene: SKScene {
 
     private var enemies: [SKSpriteNode] = []
     private var enemyDirections: [CGFloat] = []
+    private var enemyAnimators: [EnemyAnimator] = []
 
     private var coins: [SKSpriteNode] = []
     private var collectedCoins = 0
@@ -69,15 +70,16 @@ final class GameScene: SKScene {
                 }
 
                 let node = SKSpriteNode(
-                    color: y >= 10
-                        ? SKColor(red: 0.47, green: 0.29, blue: 0.12, alpha: 1)
-                        : SKColor(red: 0.82, green: 0.55, blue: 0.18, alpha: 1),
+                    color: .brown,
                     size: CGSize(width: tile, height: tile)
                 )
                 node.position = CGPoint(
                     x: CGFloat(x) * tile + tile / 2,
                     y: worldY(row: y) + tile / 2
                 )
+                if let texture = SpriteSheet.texture(named: "mapsheet", cellSize: CGSize(width: 16, height: 16), column: 1, row: 9) {
+                    node.texture = texture
+                }
                 levelNode.addChild(node)
             }
         }
@@ -188,6 +190,7 @@ final class GameScene: SKScene {
             worldNode.addChild(enemy)
             enemies.append(enemy)
             enemyDirections.append(-1)
+            enemyAnimators.append(EnemyAnimator(node: enemy))
         }
     }
 
@@ -217,6 +220,7 @@ final class GameScene: SKScene {
                     enemy.removeFromParent()
                     enemies.remove(at: i)
                     enemyDirections.remove(at: i)
+                    enemyAnimators.remove(at: i)
                     velocity.dy = jumpSpeed * 0.55
                     continue
                 }
@@ -225,6 +229,7 @@ final class GameScene: SKScene {
                 return
             }
 
+            enemyAnimators[i].update(dt: dt, direction: direction, onGround: true)
             i += 1
         }
     }
