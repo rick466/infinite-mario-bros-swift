@@ -277,26 +277,42 @@ struct LevelGenerator {
         blockify(solid)
     }
 
+    /// Direct translation of LevelGenerator.blockify() from the Java source.
     private mutating func blockify(_ blocks: [[Bool]]) {
         let offset = type == .castle ? 8 : (type == .underground ? 12 : 0)
         for x in 0...width {
             for y in 0...height {
-                let a = blocks[x][y]
-                let b = blocks[min(x + 1, width)][y]
-                let c = blocks[x][min(y + 1, height)]
-                let d = blocks[min(x + 1, width)][min(y + 1, height)]
+                let a = blocks[x][y]                 // b[0][0]
+                let b = blocks[x + 1][y]             // b[1][0]
+                let c = blocks[x][y + 1]             // b[0][1]
+                let d = blocks[x + 1][y + 1]         // b[1][1]
                 var tileID: UInt8?
+
                 if a == b && c == d {
-                    if a == c { if a { tileID = UInt8(145 + offset) } }
-                    else { tileID = UInt8((a ? 161 : 129) + offset) }
+                    if a == c {
+                        if a { tileID = UInt8(145 + offset) }
+                        // Empty area: preserve the existing decoration.
+                    } else if a {
+                        tileID = UInt8(161 + offset)
+                    } else {
+                        tileID = UInt8(129 + offset)
+                    }
                 } else if a == c && b == d {
                     tileID = UInt8((a ? 146 : 144) + offset)
                 } else if a == d && c == b {
                     tileID = UInt8(145 + offset)
                 } else if a == b {
-                    tileID = UInt8((a ? (c ? 163 : 179) : (c ? 130 : 128)) + offset)
+                    if a {
+                        tileID = UInt8((c ? 163 : 179) + offset)
+                    } else {
+                        tileID = UInt8((c ? 130 : 128) + offset)
+                    }
                 } else if c == d {
-                    tileID = UInt8((c ? (a ? 147 : 131) : (a ? 162 : 160)) + offset)
+                    if c {
+                        tileID = UInt8((a ? 147 : 131) + offset)
+                    } else {
+                        tileID = UInt8((a ? 162 : 160) + offset)
+                    }
                 } else {
                     tileID = UInt8(16 + offset)
                 }
